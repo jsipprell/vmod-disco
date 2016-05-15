@@ -115,15 +115,12 @@ vmod_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
     break;
   case VCL_EVENT_COLD:
     AZ(pthread_mutex_lock(&global_mtx));
-    vd = priv->priv;
-    CHECK_OBJ_NOTNULL(vd, VMOD_DISCO_MAGIC);
+    CAST_OBJ_NOTNULL(vd, priv->priv, VMOD_DISCO_MAGIC);
     CHECK_OBJ_NOTNULL(vd->wrk, VMOD_DISCO_BGTHREAD_MAGIC);
-    AZ(pthread_rwlock_wrlock(&vd->mtx));
     vmod_disco_bgthread_delete(&vd->wrk);
     AZ(vd->wrk);
     if (vd == default_mod && warmed_mod != NULL)
       default_mod = warmed_mod;
-    AZ(pthread_rwlock_unlock(&vd->mtx));
     AZ(pthread_mutex_unlock(&global_mtx));
     break;
   case VCL_EVENT_USE:
