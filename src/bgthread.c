@@ -17,14 +17,6 @@
 #include "vcc_disco_if.h"
 #include "disco.h"
 
-#ifndef DNS_RR_SRV
-#define DNS_RR_SRV 33
-#endif
-
-#ifndef DNS_CLASS_INET
-#define DNS_CLASS_INET 1
-#endif
-
 static void expand_srv(disco_t *d, unsigned sz)
 {
   CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
