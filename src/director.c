@@ -135,6 +135,15 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
   AN(priv);
   current_vmod(priv);
   CAST_OBJ_NOTNULL(vd, priv->priv, VMOD_DISCO_MAGIC);
+
+  if (ctx->method == VCL_MET_INIT || ctx->method == VCL_MET_FINI) {
+    if (ctx->vsl == NULL && ctx->msg != NULL) {
+      VSB_printf(ctx->msg, "disco.dancer doesn't dance in vcl_init or vcl_fini\n");
+      VRT_handling(ctx, VCL_RET_FAIL);
+      return;
+    }
+    WRONG("inappropriate attempt at disco dancing");
+  }
 dance_relock:
   if (wrlock) {
     AZ(pthread_rwlock_wrlock(&vd->mtx));
