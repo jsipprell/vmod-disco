@@ -139,6 +139,7 @@ dance_relock:
         AZ(pthread_rwlock_unlock(&vd->mtx));
         goto dance_relock;
       }
+      VSL(SLT_Debug, 0, "%d changes to %s director", d->changes, d->name);
       d->changes = 0;
       update_backends(ctx,d);
     }

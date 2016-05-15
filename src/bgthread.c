@@ -25,69 +25,6 @@
 #define DNS_CLASS_INET 1
 #endif
 
-/*
-static const char *decode_srv(txt t, char *b, int len, uint16_t *pri, uint16_t *weight, uint16_t *port)
-{
-  char *out = (char*)t.b;
-
-  assert(len > 2);
-  *pri = ntohs(*((short*)b)); b += sizeof(short); len -= sizeof(short);
-  assert(len > 2);
-  *weight = ntohs(*((short*)b)); b += sizeof(short); len -= sizeof(short);
-  assert(len > 2);
-  *port = ntohs(*((short*)b)); b += sizeof(short); len -= sizeof(short);
-  if (len > (t.e - t.b)-1)
-    len = (t.e - t.b)-1;
-
-  for(; len > 0 && *b !=  '\0';) {
-    assert(len > (int)*b);
-    AN(*b);
-    if (out > t.b && out < t.e-1) {
-      *out++ = '.';
-    }
-    strncpy(out, b+1, *b);
-    out += *b;
-    len -= *b + 1;
-    b += *b + 1;
-  }
-  *out = '\0';
-  return t.b;
-}
-*/
-/*
-static void disco_thread_discovered_service(struct vmod_disco *mod, disco_t *d, int err, struct ub_result *res)
-{
-  CHECK_OBJ_NOTNULL(mod, VMOD_DISCO_MAGIC);
-  CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
-  if(err) {
-    VSL(SLT_Debug, 0, ub_strerror(err));
-    return;
-  }
-
-  AN(res->data);
-  if(res->data[0]) {
-    char **cp;
-    int *l = res->len;
-    for (cp = res->data; *cp; cp++, l++) {
-      char buf[256];
-      const char *label;
-      uint16_t pri, weight, port;
-      txt t;
-      
-      t.b = buf;
-      t.e = buf +sizeof(buf);
-
-      label = decode_srv(t, *cp, *l, &pri, &weight, &port);
-      AN(label);
-
-      VSL(SLT_Debug, 0, "%s: pri=%hu weight=%hu port=%hu %s", d->name, pri, weight, port, label);
-    }
-  } else {
-    VSL(SLT_Debug, 0, "%s: NO DATA!", d->name);
-  }
-}
-*/
-
 static void expand_srv(disco_t *d, unsigned sz)
 {
   CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
@@ -96,15 +33,29 @@ static void expand_srv(disco_t *d, unsigned sz)
   d->l_srv = sz;
 }
 
+
+static inline int cmpsrv_sa(adns_sockaddr *s1, adns_sockaddr *s2)
+{
+  if (s1->sa.sa_family == s2->sa.sa_family) {
+    switch(s1->sa.sa_family) {
+    case AF_INET6:
+      return memcmp(&s1->inet6.sin6_addr, &s2->inet6.sin6_addr, sizeof(s1->inet6.sin6_addr));
+    case AF_INET:
+      return memcmp(&s1->inet.sin_addr, &s2->inet.sin_addr, sizeof(s1->inet.sin_addr));
+    default:
+      assert("unsupported protocol family" == NULL);
+    }
+  }
+  return -1;
+}
+
 static int cmpsrv(dns_srv_t *s1, adns_rr_srvha *s2)
 {
-  if (s2->ha.naddrs > 0) {
+  if (s2->ha.naddrs > 0)
     return (s1->priority == s2->priority &&
            s1->weight == s2->weight &&
-           s1->port == s2->port &&
-           s1->addr.len == s2->ha.addrs->len &&
-           memcmp(&s1->addr.addr, &s2->ha.addrs->addr, s1->addr.len) == 0)  ? 0 : 1;
-  }
+           s1->port == s2->port) ?
+           cmpsrv_sa(&s1->addr.addr, &s2->ha.addrs->addr) : 1;
 
   return -1;
 }
@@ -299,7 +250,6 @@ disco_thread(struct worker *wrk, void *priv)
     gen = bg->gen;
     shutdown = bg->shutdown;
     Lck_Unlock(&bg->mtx);
-    VSL(SLT_Debug, 0, "disco thread woke up");
     if (!shutdown) {
       adns_processany(bg->dns);
     }
