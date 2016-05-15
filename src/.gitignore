@@ -1,0 +1,5 @@
+.libs
+*_if.h
+*_if.c
+vmod_*.3
+vmod_*.man.rst
