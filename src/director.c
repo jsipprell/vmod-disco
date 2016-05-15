@@ -76,23 +76,33 @@ static void update_backends(VRT_CTX, disco_t *d)
           VRT_delete_backend(ctx, &d->backends[i]);
           AZ(d->backends[i]);
         }
-        free(d->addrs[i]);
+        free((void*)d->addrs[i]);
         d->addrs[i] = NULL;
       }
     } else {
       while (i >= d->n_backends) {
+        assert(d->n_backends < d->l_backends);
         d->addrs[d->n_backends] = NULL;
         d->backends[d->n_backends] = NULL;
         d->n_backends++;
       }
     }
     if (!d->addrs[i]) {
-      d->addrs[i] = VSA_Clone(ip);
-      assert(VSA_Sane(d->addrs[i]));
+      assert(VSA_Sane(ip));
       INIT_OBJ(&be, VRT_BACKEND_MAGIC);
-      be.ipv4_suckaddr = d->addrs[i];
+      switch (VSA_Get_Proto(ip)) {
+      case PF_INET6:
+        AN(d->addrs[i] = be.ipv6_suckaddr = VSA_Clone(ip));
+        break;
+      case PF_INET:
+        AN(d->addrs[i] = be.ipv4_suckaddr = VSA_Clone(ip));
+        break;
+      default:
+        WRONG("Protocol family not supported (was neither PF_INET6 nor PF_INET)");
+      }
       AN(d->srv[i].name);
       be.vcl_name = WS_Printf(ctx->ws, "%s_%s", d->vd->dir->vcl_name, d->srv[i].name);
+      AN(be.vcl_name);
       d->backends[i] = VRT_new_backend(ctx, &be);
       AN(d->backends[i]);
       vdir_add_backend(d->vd, d->backends[i], 1.0);
@@ -105,7 +115,7 @@ static void update_backends(VRT_CTX, disco_t *d)
       vdir_remove_backend(d->vd, d->backends[i]);
       VRT_delete_backend(ctx, &d->backends[i]);
       AZ(d->backends[i]);
-      free(d->addrs[i]);
+      free((void*)d->addrs[i]);
       d->addrs[i] = NULL;
     }
   }
@@ -236,7 +246,7 @@ vmod_random__fini(struct vmod_disco_random **rrp)
       rr->d->backends[i] = NULL;
     }
     if (rr->d->addrs[i]) {
-      free(rr->d->addrs[i]);
+      free((void*)rr->d->addrs[i]);
       rr->d->addrs[i] = NULL;
     }
   }

@@ -45,7 +45,7 @@ struct vmod_disco_director {
   unsigned n_srv, l_srv;
   unsigned changes;
 
-  struct suckaddr **addrs;
+  const struct suckaddr **addrs;
   struct director **backends;
   unsigned n_backends, l_backends;
 

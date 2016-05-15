@@ -43,7 +43,7 @@ static inline int cmpsrv_sa(adns_sockaddr *s1, adns_sockaddr *s2)
     case AF_INET:
       return memcmp(&s1->inet.sin_addr, &s2->inet.sin_addr, sizeof(s1->inet.sin_addr));
     default:
-      assert("unsupported protocol family" == NULL);
+      WRONG("unsupported protocol family");
     }
   }
   return -1;
@@ -93,7 +93,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
   CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
 
   if (ans->nrrs == 0) {
-    VSL(SLT_Debug, 0, adns_strerror(ans->status));
+    VSL(SLT_Debug, 0, "%s: %s", d->name, adns_strerror(ans->status));
     free(ans);
     return;
   }
@@ -153,7 +153,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
         s->addr.addr.inet.sin_port = htons(s->port);
         break;
       default:
-        assert("unsupported address family" == NULL);
+        WRONG("unsupported address family");
       }
     }
   }
@@ -192,17 +192,27 @@ static double disco_thread_run(struct worker *wrk,
       switch(adns_check(bg->dns, &d->query, &ans, &ctx)) {
       case ESRCH:
       case EAGAIN:
-        interval = 1e-2;
+        if (d->query && d->nxt > 0 && now >= d->nxt) {
+          adns_cancel(d->query);
+          d->query = NULL;
+          VSL(SLT_Error, 0, "no response to query for '%s', giving up (next query is pending)", d->name);
+          goto nextquery;
+        } else
+          interval = 1e-2;
         break;
       case 0:
         d->query = NULL;
         disco_thread_dnsresp(ctx, d, ans);
         d->nxt = now + d->freq;
+        break;
+      default:
+        WRONG("unexpected response from adns_check");
       }
       continue;
     }
     if (d->nxt > now)
       continue;
+nextquery:
     d->nxt = now + d->freq;
     AN(bg->dns);
     u = WS_Reserve(bg->ws, 0);
