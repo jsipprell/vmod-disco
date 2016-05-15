@@ -94,6 +94,14 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
 
   if (ans->nrrs == 0) {
     VSL(SLT_Debug, 0, "%s: %s", d->name, adns_strerror(ans->status));
+    if (ans->status == adns_s_nxdomain && ans->type == adns_r_srv && d->n_srv > 0) {
+      for (u = d->n_srv-1; d->n_srv > 0; d->n_srv--, u--) {
+        if (d->srv[u].port > 0) {
+          memset(&d->srv[u], 0, sizeof(d->srv[u]));
+          d->changes++;
+        }
+      }
+    }
     free(ans);
     return;
   }
