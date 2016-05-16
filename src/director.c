@@ -47,7 +47,7 @@ static void expand_discovered_backends(disco_t *d, unsigned sz)
   d->l_backends = sz;
 }
 
-static void update_backends(VRT_CTX, disco_t *d)
+static void update_backends(VRT_CTX, disco_t *d, short recreate)
 {
   unsigned u,i;
   struct suckaddr *ip;
@@ -70,7 +70,7 @@ static void update_backends(VRT_CTX, disco_t *d)
     assert(VSA_Sane(ip));
     WS_Release(ctx->ws, PRNDUP(vsa_suckaddr_len));
     if (i < d->n_backends && d->addrs[i]) {
-      if (VSA_Compare(ip, d->addrs[i])) {
+      if (recreate || VSA_Compare(ip, d->addrs[i])) {
         if (d->backends[i]) {
           vdir_remove_backend(d->vd, d->backends[i]);
           VRT_delete_backend(ctx, &d->backends[i]);
@@ -162,7 +162,7 @@ dance_relock:
       }
       VSL(SLT_Debug, 0, "%d changes to %s director", d->changes, d->name);
       d->changes = 0;
-      update_backends(ctx,d);
+      update_backends(ctx,d,0);
     }
   }
   AZ(pthread_rwlock_unlock(&vd->mtx));
@@ -305,7 +305,7 @@ vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_ba
   if (ctx->ws) {
     VTAILQ_FOREACH(d, &vd->dirs, list) {
       d->changes = 0;
-      update_backends(ctx,d);
+      update_backends(ctx,d,1);
     }
   }
   AZ(pthread_rwlock_unlock(&vd->mtx));
