@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include "vcl.h"
 #include "vrt.h"
@@ -150,7 +151,12 @@ dance_relock:
   if (wrlock) {
     AZ(pthread_rwlock_wrlock(&vd->mtx));
   } else {
-    AZ(pthread_rwlock_rdlock(&vd->mtx));
+    int err = pthread_rwlock_tryrdlock(&vd->mtx);
+    if (err == EBUSY) {
+      /* silently ignore, disco is being updated by someone else */
+      return;
+    }
+    AZ(err);
   }
 
   VTAILQ_FOREACH(d, &vd->dirs, list) {
