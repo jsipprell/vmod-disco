@@ -103,6 +103,8 @@ static void update_backends(VRT_CTX, disco_t *d)
       AN(d->srv[i].name);
       be.vcl_name = WS_Printf(ctx->ws, "%s_%s", d->vd->dir->vcl_name, d->srv[i].name);
       AN(be.vcl_name);
+      be.probe = d->probe;
+      be.hosthdr = d->name;
       d->backends[i] = VRT_new_backend(ctx, &be);
       AN(d->backends[i]);
       vdir_add_backend(d->vd, d->backends[i], 1.0);
@@ -277,14 +279,34 @@ vmod_random__fini(struct vmod_disco_random **rrp)
 }
 
 VCL_BACKEND __match_proto__(td_disco_random_backend)
-vmod_random_backend(VRT_CTX, struct vmod_disco_random *rr, struct vmod_priv *priv)
+vmod_random_backend(VRT_CTX, struct vmod_disco_random *rr)
 {
   CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
   CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
   CHECK_OBJ_NOTNULL(rr->d->vd, VDIR_MAGIC);
 
   (void)ctx;
-  (void)priv;
   return rr->d->vd->dir;
 }
 
+VCL_VOID __match_proto__(td_disco_random_set_probe)
+vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_backend_probe *probe)
+{
+  struct vmod_disco *vd;
+  disco_t *d;
+
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
+  CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
+  CAST_OBJ_NOTNULL(vd, rr->mod, VMOD_DISCO_MAGIC);
+
+  (void)ctx;
+  AZ(pthread_rwlock_wrlock(&vd->mtx));
+  rr->d->probe = probe;
+  if (ctx->ws) {
+    VTAILQ_FOREACH(d, &vd->dirs, list) {
+      d->changes = 0;
+      update_backends(ctx,d);
+    }
+  }
+  AZ(pthread_rwlock_unlock(&vd->mtx));
+}

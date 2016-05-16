@@ -26,10 +26,12 @@ Description
   set.* Normally, if the are no changes, this does nothing and consumes
   effectively no resources.
 Example
-  sub vcl_recv {
-    disco.dance();
-    set req.backend_hint = vdir.backend();
-  }
+  ::
+
+    sub vcl_recv {
+      disco.dance();
+      set req.backend_hint = vdir.backend();
+    }
 
 $Object random(PRIV_CALL, STRING, DURATION)
 
@@ -39,13 +41,33 @@ Description
   SRV records. The duration specifies how often the query will be resent by the
   background dns thread in order to refresh the service list.
 Example
-  sub vcl_init {
-    new vdir = disco.random("myservice.service.consul", 20s)
-  }
+  ::
 
-$Method BACKEND .backend(PRIV_CALL)
+    sub vcl_init {
+      new vdir = disco.random("myservice.service.consul", 20s);
+    }
+
+$Method VOID .set_probe(PROBE)
+
+Description
+  Set the health probe to use for *all* discovered backends for this director.
+  Default behavior is to not probe discovered backends.
+Example
+  ::
+
+    probe myprobe {
+      .url = "/foo";
+      .expected_response = 201;
+    }
+
+    sub vcl_init {
+      new vdir = disco.random("myservice.service.consul", 20s);
+      vdir.set_probe(myprobe);
+    }
+
+$Method BACKEND .backend()
 
 Description
   Selects a random selector in exactly the same way that
-  vmod_directos' `backend()` methods do.
+  vmod_directors' `backend()` methods do.
 

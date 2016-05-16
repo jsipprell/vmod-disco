@@ -45,7 +45,8 @@ CONTENTS
 
 * VOID dance(PRIV_CALL)
 * Object random
-* BACKEND random.backend(PRIV_CALL)
+* BACKEND random.backend()
+* VOID random.set_probe(PROBE)
 
 .. _func_dance:
 
@@ -62,10 +63,12 @@ Description
   set.* Normally, if the are no changes, this does nothing and consumes
   effectively no resources.
 Example
-  sub vcl_recv {
-    disco.dance();
-    set req.backend_hint = vdir.backend();
-  }
+  ::
+
+    sub vcl_recv {
+      disco.dance();
+      set req.backend_hint = vdir.backend();
+    }
 
 .. _obj_random:
 
@@ -79,19 +82,45 @@ Description
   SRV records. The duration specifies how often the query will be resent by the
   background dns thread in order to refresh the service list.
 Example
-  sub vcl_init {
-    new vdir = disco.random("myservice.service.consul", 20s)
-  }
+  ::
+
+    sub vcl_init {
+      new vdir = disco.random("myservice.service.consul", 20s);
+    }
+
+.. _func_random.set_probe:
+
+VOID random.set_probe(PROBE)
+----------------------------
+
+Prototype
+	VOID random.set_probe(PROBE)
+
+Description
+  Set the health probe to use for *all* discovered backends for this director.
+  Default behavior is to not probe discovered backends.
+Example
+  ::
+
+    probe myprobe {
+      .url = "/foo";
+      .expected_response = 201;
+    }
+
+    sub vcl_init {
+      new vdir = disco.random("myservice.service.consul", 20s);
+      vdir.set_probe(myprobe);
+    }
 
 .. _func_random.backend:
 
-BACKEND random.backend(PRIV_CALL)
----------------------------------
+BACKEND random.backend()
+------------------------
 
 Prototype
-	BACKEND random.backend(PRIV_CALL)
+	BACKEND random.backend()
 
 Description
   Selects a random selector in exactly the same way that
-  vmod_directos' `backend()` methods do.
+  vmod_directors' `backend()` methods do.
 

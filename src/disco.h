@@ -37,7 +37,8 @@ struct vmod_disco_director {
 
   struct vdir *vd;
   char *name;
-  unsigned refcnt, rm;
+  const struct vrt_backend_probe *probe;
+
   double nxt, freq;
   adns_query query;
 
