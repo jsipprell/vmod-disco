@@ -115,7 +115,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
       }
       if (w <= ans->nrrs) {
         if (u < d->n_srv-1) {
-          memcpy(&d->srv[u], &d->srv[u+1], ((d->n_srv-1) - u) * sizeof(adns_rr_srvha));
+          memcpy(&d->srv[u], &d->srv[u+1], ((d->n_srv-1) - u) * sizeof(d->srv[u]));
           u--;
         }
         d->changes++;
@@ -182,7 +182,7 @@ static double disco_thread_run(struct worker *wrk,
   Lck_AssertHeld(&bg->mtx);
   (void)wrk;
   interval = bg->interval;
-  AZ(pthread_rwlock_wrlock(&mod->mtx));
+  update_rwlock_wrlock(mod->mtx);
   VTAILQ_FOREACH(d, &mod->dirs, list) {
     CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
     if (d->query) {
@@ -229,7 +229,7 @@ nextquery:
     VSL(SLT_Debug, 0, "req for srv for '%s sent", name);
     WS_Release(bg->ws, 0);
   }
-  AZ(pthread_rwlock_unlock(&mod->mtx));
+  update_rwlock_unlock(mod->mtx, NULL);
   adns_processany(bg->dns);
   return now + interval;
 }

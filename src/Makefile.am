@@ -9,7 +9,7 @@ notrans_man_MANS = vmod_disco.3
 
 libvmod_disco_la_LIBADD = @ADNS_LIBS@
 libvmod_disco_la_LDFLAGS = $(AM_LDFLAGS) -module -export-dynamic -avoid-version -shared
-libvmod_disco_la_SOURCES = vcc_disco_if.c vcc_disco_if.h vdir.c vdir.h \
+libvmod_disco_la_SOURCES = vcc_disco_if.c vcc_disco_if.h vdir.c vdir.h update.c \
 	bgthread.c event.c director.c \
 	disco.h
 

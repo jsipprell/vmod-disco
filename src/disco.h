@@ -1,6 +1,8 @@
 #ifndef VMOD_DISCO_MAGIC
 #include <adns.h>
 
+typedef struct update_rwlock* update_rwlock_t;
+
 struct vmod_disco_bgthread {
   unsigned magic;
 #define VMOD_DISCO_BGTHREAD_MAGIC 0x83e012af
@@ -27,7 +29,8 @@ struct vmod_disco {
 #define VMOD_DISCO_MAGIC 0x6ff301a9
 
   struct vmod_disco_bgthread *wrk;
-  pthread_rwlock_t mtx;
+  update_rwlock_t mtx;
+
   VTAILQ_HEAD(,vmod_disco_director) dirs;
 };
 
@@ -65,10 +68,19 @@ struct vmod_disco_random {
   unsigned char __scratch[2048];
 };
 
+
 void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, unsigned interval);
 void vmod_disco_bgthread_kick(struct vmod_disco_bgthread *wrk, unsigned shutdown);
 void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp);
 
 void current_vmod(struct vmod_priv*);
+
+void update_rwlock_new(update_rwlock_t*);
+void update_rwlock_delete(update_rwlock_t*);
+void update_rwlock_rdlock(update_rwlock_t);
+void update_rwlock_wrlock(update_rwlock_t);
+void update_rwlock_unlock(update_rwlock_t, const struct update_rwlock*);
+int update_rwlock_tryrdlock(update_rwlock_t);
+int update_rwlock_tryanylock(update_rwlock_t, int*);
 
 #endif /* VMOD_DISCO_MAGIC */

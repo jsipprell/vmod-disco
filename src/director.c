@@ -132,7 +132,8 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
 {
   struct vmod_disco *vd;
   disco_t *d;
-  int wrlock = 0;
+  int err, wrlock = 0;
+  unsigned changes;
 
   CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
   AN(priv);
@@ -147,31 +148,33 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
     }
     WRONG("inappropriate attempt at disco dancing");
   }
-dance_relock:
-  if (wrlock) {
-    AZ(pthread_rwlock_wrlock(&vd->mtx));
-  } else {
-    int err = pthread_rwlock_tryrdlock(&vd->mtx);
-    if (err == EBUSY) {
-      /* silently ignore, disco is being updated by someone else */
-      return;
-    }
-    AZ(err);
+
+  err = update_rwlock_tryrdlock(vd->mtx);
+  if (err == EBUSY) {
+    /* silently ignore, disco is being updated by someone else */
+    return;
   }
+  AZ(err);
 
   VTAILQ_FOREACH(d, &vd->dirs, list) {
-    if (d->changes) {
+    if ((changes = d->changes) > 0) {
       if (!wrlock) {
-        wrlock++;
-        AZ(pthread_rwlock_unlock(&vd->mtx));
-        goto dance_relock;
+        update_rwlock_unlock(vd->mtx, NULL);
+        err = update_rwlock_tryanylock(vd->mtx, &wrlock);
+        if (err == EBUSY) {
+          AZ(wrlock);
+          return;
+        } else if (wrlock) changes = d->changes;
+        AZ(err);
       }
-      VSL(SLT_Debug, 0, "%d changes to %s director", d->changes, d->name);
-      d->changes = 0;
-      update_backends(ctx,d,0);
+      if (wrlock && changes) {
+        VSL(SLT_Debug, 0, "%u changes to %s director", changes, d->name);
+        d->changes = 0;
+        update_backends(ctx,d,0);
+      }
     }
   }
-  AZ(pthread_rwlock_unlock(&vd->mtx));
+  update_rwlock_unlock(vd->mtx, (wrlock ? vd->mtx : NULL));
 }
 
 
@@ -198,7 +201,7 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
   s = ((unsigned char*)(*p)->ws) + PRNDUP(sizeof(struct ws));
   WS_Init((*p)->ws, "mii", s, sizeof((*p)->__scratch) - (s - &(*p)->__scratch[0]));
 
-  AZ(pthread_rwlock_wrlock(&vd->mtx));
+  update_rwlock_wrlock(vd->mtx);
   ALLOC_OBJ(d, VMOD_DISCO_DIRECTOR_MAGIC);
   AN(d);
   u = WS_Reserve((*p)->ws, strlen(name)+1);
@@ -223,7 +226,7 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
   VTAILQ_INSERT_TAIL(&vd->dirs, d, list);
   (*p)->d = d;
 
-  AZ(pthread_rwlock_unlock(&vd->mtx));
+  update_rwlock_unlock(vd->mtx, NULL);
   if (vd->wrk)
     vmod_disco_bgthread_kick(vd->wrk, 0);
 }
@@ -249,7 +252,7 @@ vmod_random__fini(struct vmod_disco_random **rrp)
     Lck_Lock(vdlock);
   }
 
-  AZ(pthread_rwlock_wrlock(&vd->mtx));
+  update_rwlock_wrlock(vd->mtx);
   VTAILQ_REMOVE(&vd->dirs, rr->d, list);
 
   if (rr->d->l_srv > 0)
@@ -278,7 +281,7 @@ vmod_random__fini(struct vmod_disco_random **rrp)
   rr->d = NULL;
   rr->mod = NULL;
   FREE_OBJ(rr);
-  AZ(pthread_rwlock_unlock(&vd->mtx));
+  update_rwlock_unlock(vd->mtx, NULL);
 
   if (vdlock)
     Lck_Unlock(vdlock);
@@ -306,7 +309,7 @@ vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_ba
   CAST_OBJ_NOTNULL(vd, rr->mod, VMOD_DISCO_MAGIC);
 
   (void)ctx;
-  AZ(pthread_rwlock_wrlock(&vd->mtx));
+  update_rwlock_wrlock(vd->mtx);
   rr->d->probe = probe;
   if (ctx->ws) {
     VTAILQ_FOREACH(d, &vd->dirs, list) {
@@ -314,5 +317,5 @@ vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_ba
       update_backends(ctx,d,1);
     }
   }
-  AZ(pthread_rwlock_unlock(&vd->mtx));
+  update_rwlock_unlock(vd->mtx, NULL);
 }

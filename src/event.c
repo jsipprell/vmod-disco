@@ -26,7 +26,8 @@ static void free_func(void *p)
 
   CAST_OBJ_NOTNULL(vd, p, VMOD_DISCO_MAGIC);
   AZ(pthread_mutex_lock(&global_mtx));
-  AZ(pthread_rwlock_destroy(&vd->mtx));
+  update_rwlock_delete(&vd->mtx);
+  AZ(vd->mtx);
   if (default_mod == vd)
     default_mod = NULL;
   if (warmed_mod == vd)
@@ -66,7 +67,8 @@ vmod_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
       priv->len = sizeof(*vd);
       priv->free = free_func;
       VTAILQ_INIT(&vd->dirs);
-      AZ(pthread_rwlock_init(&vd->mtx, NULL));
+      update_rwlock_new(&vd->mtx);
+      AN(vd->mtx);
       default_mod = vd;
     } else {
       vd = priv->priv;
@@ -75,17 +77,18 @@ vmod_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
         struct vmod_disco *dvd = default_mod ? default_mod : warmed_mod;
 
         if (dvd) {
-          AZ(pthread_rwlock_wrlock(&dvd->mtx));
+          update_rwlock_wrlock(dvd->mtx);
         }
         ALLOC_OBJ(vd, VMOD_DISCO_MAGIC);
         AN(vd);
         priv->len = sizeof(*vd);
         priv->free = free_func;
         VTAILQ_INIT(&vd->dirs);
-        AZ(pthread_rwlock_init(&vd->mtx, NULL));
+        update_rwlock_new(&vd->mtx);
+        AN(vd->mtx);
         default_mod = vd;
         if (dvd) {
-          AZ(pthread_rwlock_unlock(&dvd->mtx));
+          update_rwlock_unlock(dvd->mtx, NULL);
         }
       }
     }
@@ -105,12 +108,12 @@ vmod_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
     vd = priv->priv;
     CHECK_OBJ_NOTNULL(vd, VMOD_DISCO_MAGIC);
     AZ(vd->wrk);
-    AZ(pthread_rwlock_wrlock(&vd->mtx));
+    update_rwlock_wrlock(vd->mtx);
     if (default_mod == NULL && warmed_mod != NULL)
       default_mod = warmed_mod;
     warmed_mod = vd;
     vmod_disco_bgthread_start(&vd->wrk, vd, 1.0);
-    AZ(pthread_rwlock_unlock(&vd->mtx));
+    update_rwlock_unlock(vd->mtx, NULL);
     AZ(pthread_mutex_unlock(&global_mtx));
     break;
   case VCL_EVENT_COLD:
