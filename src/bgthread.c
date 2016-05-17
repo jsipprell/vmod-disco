@@ -215,7 +215,6 @@ static double disco_thread_run(struct worker *wrk,
       continue;
 nextquery:
     d->nxt = now + d->freq + d->fuzz;
-    d->fuzz = 0;
     AN(bg->dns);
     u = WS_Reserve(bg->ws, 0);
     l = strlen(d->name);
