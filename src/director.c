@@ -58,9 +58,34 @@ static void update_vdir_add_backend(struct vdir *vdir, unsigned pri, unsigned we
   vdir_add_backend(vdir, be, 1.0 + scalbn(weight, -16));
 }
 
+static void compact_backends(disco_t *d)
+{
+  int i;
+  unsigned u = 0;
+
+  for (i = (int)d->n_backends-1; i >= 0; i--) {
+    assert(i < d->n_srv);
+    if (!d->addrs[i]) {
+      AZ(d->srv[i].port);
+      AZ(d->backends[i]);
+      if (u > 0) {
+        assert(u < d->n_backends);
+        memmove(&d->addrs[i], &d->addrs[u], (d->n_backends - u) * sizeof(d->addrs[i]));
+        memmove(&d->backends[i], &d->backends[u], (d->n_backends - u) * sizeof(d->backends[i]));
+        memmove(&d->srv[i], &d->srv[u], (d->n_srv - u) * sizeof(d->srv[i]));
+        u = i;
+      }
+      d->n_backends--;
+      d->n_srv--;
+    } else u = i;
+  }
+
+  assert(d->n_srv == d->n_backends);
+}
+
 static void update_backends(VRT_CTX, disco_t *d, short recreate)
 {
-  unsigned u,i;
+  unsigned u,i,c = 0;
   struct suckaddr *ip;
   struct vrt_backend be;
   char *snap;
@@ -73,6 +98,25 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
   for (i = 0; i < d->n_srv; i++) {
     while(i >= d->l_backends)
       expand_discovered_backends(d, d->l_backends+16);
+    if (d->srv[i].port == 0 || recreate) {
+      if (i < d->n_backends && d->addrs[i]) {
+        CHECK_OBJ_NOTNULL(d->backends[i], DIRECTOR_MAGIC);
+        vdir_remove_backend(d->vd, d->backends[i]);
+        VRT_delete_backend(ctx, &d->backends[i]);
+        AZ(d->backends[i]);
+        free((void*)d->addrs[i]);
+        d->addrs[i] = NULL;
+      } else {
+        while(i >= d->n_backends) {
+          assert(d->n_backends < d->l_backends);
+          d->addrs[d->n_backends] = NULL;
+          d->backends[d->n_backends] = NULL;
+          d->n_backends++;
+        }
+      }
+      c++;
+      continue;
+    }
     WS_Reset(ctx->ws, snap);
     u = WS_Reserve(ctx->ws, 0);
     assert(u > vsa_suckaddr_len*2);
@@ -81,12 +125,11 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
     assert(VSA_Sane(ip));
     WS_Release(ctx->ws, PRNDUP(vsa_suckaddr_len));
     if (i < d->n_backends && d->addrs[i]) {
-      if (recreate || VSA_Compare(ip, d->addrs[i])) {
-        if (d->backends[i]) {
-          vdir_remove_backend(d->vd, d->backends[i]);
-          VRT_delete_backend(ctx, &d->backends[i]);
-          AZ(d->backends[i]);
-        }
+      if (VSA_Compare(ip, d->addrs[i])) {
+        CHECK_OBJ_NOTNULL(d->backends[i], DIRECTOR_MAGIC);
+        vdir_remove_backend(d->vd, d->backends[i]);
+        VRT_delete_backend(ctx, &d->backends[i]);
+        AZ(d->backends[i]);
         free((void*)d->addrs[i]);
         d->addrs[i] = NULL;
       }
@@ -96,6 +139,7 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
         d->addrs[d->n_backends] = NULL;
         d->backends[d->n_backends] = NULL;
         d->n_backends++;
+        c++;
       }
     }
     if (!d->addrs[i]) {
@@ -130,11 +174,15 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
       AZ(d->backends[i]);
       free((void*)d->addrs[i]);
       d->addrs[i] = NULL;
+      c++;
     }
   }
   d->n_backends = d->n_srv;
 
   WS_Reset(ctx->ws, snap);
+
+  if(c)
+    compact_backends(d);
 }
 
 VCL_VOID __match_proto__(td_disco_dance)

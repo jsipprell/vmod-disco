@@ -64,11 +64,13 @@ static void dump_director(disco_t *d)
 
   for (u = 0; u < d->n_srv; u++) {
     s = &d->srv[u];
-    p = s->port;
-    AZ(adns_addr2text(&s->addr.addr.sa, 0, buf, &buflen, &p));
+    if (s->port) {
+      p = s->port;
+      AZ(adns_addr2text(&s->addr.addr.sa, 0, buf, &buflen, &p));
 
-    VSL(SLT_Debug, 0, "disco: DNS-SD %s SRV#%u: %hu %hu %hu %s:%d", d->name,
-            u+1, s->priority, s->weight, s->port, buf, p);
+      VSL(SLT_Debug, 0, "disco: DNS-SD %s SRV#%u: %hu %hu %hu %s:%d", d->name,
+              u+1, s->priority, s->weight, s->port, buf, p);
+    }
   }
 }
 
@@ -77,7 +79,6 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
   unsigned u, w;
   struct vmod_disco *mod;
   dns_srv_t *s;
-  adns_rr_addr *a;
   char *cp;
   const char *hp;
 
@@ -87,7 +88,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
   if (ans->nrrs == 0) {
     VSL(SLT_Debug, 0, "disco: %s: %s", d->name, adns_strerror(ans->status));
     if ((ans->status == adns_s_nxdomain || ans->status == adns_s_nodata) && ans->type == adns_r_srv && d->n_srv > 0) {
-      for (u = d->n_srv-1; d->n_srv > 0; d->n_srv--, u--) {
+      for (u = 0; u < d->n_srv; u++) {
         if (d->srv[u].port > 0) {
           memset(&d->srv[u], 0, sizeof(d->srv[u]));
           d->changes++;
@@ -114,23 +115,16 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
         }
       }
       if (w <= ans->nrrs) {
-        if (u < d->n_srv-1) {
-          memcpy(&d->srv[u], &d->srv[u+1], ((d->n_srv-1) - u) * sizeof(d->srv[u]));
-          u--;
-        }
+        assert(u < d->n_srv);
+        memset(&d->srv[u], 0, sizeof(d->srv[u]));
         d->changes++;
-        d->n_srv--;
       }
     }
   }
 
   for (u = 0; u < ans->nrrs; u++) {
-    a = ans->rrs.srvha[u].ha.addrs;
-    AN(a);
-
     if (ans->rrs.srvha[u].ha.naddrs > 0) {
-      s = &d->srv[d->n_srv];
-      d->n_srv++;
+      s = &d->srv[d->n_srv++];
       d->changes++;
       assert(d->n_srv < d->l_srv);
       memset(s, 0, sizeof(*s));
@@ -143,7 +137,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
       *cp = '\0';
       s->priority = ans->rrs.srvha[u].priority;
       s->weight = ans->rrs.srvha[u].weight;
-      s->port = ans->rrs.srvha[u].port;
+      s->port = ans->rrs.srvha[u].port ? ans->rrs.srvha[u].port : 80;
       memcpy(&s->addr, ans->rrs.srvha[u].ha.addrs, sizeof(s->addr));
       switch (s->addr.addr.sa.sa_family) {
       case AF_INET6:
