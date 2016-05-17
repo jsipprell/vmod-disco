@@ -182,7 +182,7 @@ static double disco_thread_run(struct worker *wrk,
   Lck_AssertHeld(&bg->mtx);
   (void)wrk;
   interval = bg->interval;
-  update_rwlock_wrlock(mod->mtx);
+  update_rwlock_rdlock(mod->mtx);
   VTAILQ_FOREACH(d, &mod->dirs, list) {
     CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
     if (d->query) {
