@@ -42,7 +42,7 @@ struct vmod_disco_director {
   char *name;
   const struct vrt_backend_probe *probe;
 
-  double nxt, freq;
+  double nxt, freq, fuzz;
   adns_query query;
 
   dns_srv_t *srv;

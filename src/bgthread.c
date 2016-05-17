@@ -67,7 +67,7 @@ static void dump_director(disco_t *d)
     p = s->port;
     AZ(adns_addr2text(&s->addr.addr.sa, 0, buf, &buflen, &p));
 
-    VSL(SLT_Debug, 0, "%s #%u: %hu %hu %hu %s:%d", d->name,
+    VSL(SLT_Debug, 0, "disco: DNS-SD %s SRV#%u: %hu %hu %hu %s:%d", d->name,
             u+1, s->priority, s->weight, s->port, buf, p);
   }
 }
@@ -85,7 +85,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
   CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
 
   if (ans->nrrs == 0) {
-    VSL(SLT_Debug, 0, "%s: %s", d->name, adns_strerror(ans->status));
+    VSL(SLT_Debug, 0, "disco: %s: %s", d->name, adns_strerror(ans->status));
     if (ans->status == adns_s_nxdomain && ans->type == adns_r_srv && d->n_srv > 0) {
       for (u = d->n_srv-1; d->n_srv > 0; d->n_srv--, u--) {
         if (d->srv[u].port > 0) {
@@ -203,7 +203,8 @@ static double disco_thread_run(struct worker *wrk,
       case 0:
         d->query = NULL;
         disco_thread_dnsresp(ctx, d, ans);
-        d->nxt = now + d->freq;
+        d->nxt = now + d->freq + d->fuzz;
+        d->fuzz = 0;
         break;
       default:
         WRONG("unexpected response from adns_check");
@@ -226,7 +227,7 @@ nextquery:
        mod, &d->query));
     interval = 1e-3;
 
-    VSL(SLT_Debug, 0, "req for srv for '%s sent", name);
+    VSL(SLT_Debug, 0, "disco: DNS-SD %s: Q SRV %s", d->name, name);
     WS_Release(bg->ws, 0);
   }
   update_rwlock_unlock(mod->mtx, NULL);
@@ -264,7 +265,7 @@ disco_thread(struct worker *wrk, void *priv)
       adns_processany(bg->dns);
     }
   }
-  VSL(SLT_Debug, 0, "disco thread shutdown");
+  VSL(SLT_Debug, 0, "disco: bgthread shutdown");
   Lck_Lock(&bg->mtx);
   bg->gen = 0;
   adns_finish(bg->dns);
