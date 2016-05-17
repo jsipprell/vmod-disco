@@ -226,7 +226,6 @@ nextquery:
     WS_Release(bg->ws, 0);
   }
   update_rwlock_unlock(mod->mtx, NULL);
-  adns_processany(bg->dns);
   return now + interval;
 }
 
@@ -240,31 +239,32 @@ disco_thread(struct worker *wrk, void *priv)
   CAST_OBJ_NOTNULL(bg, priv, VMOD_DISCO_BGTHREAD_MAGIC);
   (void)wrk;
 
-  gen = 0;
+  gen = bg->gen;
   shutdown = 0;
   AZ(adns_init(&bg->dns, adns_if_nosigpipe|adns_if_permit_ipv4|adns_if_permit_ipv6, NULL));
+  Lck_Lock(&bg->mtx);
+  VSL(SLT_Debug, 0, "disco: bgthread startup");
   while (!shutdown) {
-    Lck_Lock(&bg->mtx);
     d = disco_thread_run(wrk, bg, VTIM_real());
     Lck_AssertHeld(&bg->mtx);
-    Lck_Unlock(&bg->mtx);
-    adns_processany(bg->dns);
-    Lck_Lock(&bg->mtx);
-    if (gen == bg->gen) {
-      (void)Lck_CondWait(&bg->cond, &bg->mtx, d);
+    if (!bg->shutdown) {
+      Lck_Unlock(&bg->mtx);
+      adns_processany(bg->dns);
+      Lck_Lock(&bg->mtx);
     }
+    if (gen == bg->gen && !bg->shutdown)
+      (void)Lck_CondWait(&bg->cond, &bg->mtx, d);
+    Lck_AssertHeld(&bg->mtx);
     gen = bg->gen;
     shutdown = bg->shutdown;
-    Lck_Unlock(&bg->mtx);
-    if (!shutdown) {
+    if (!shutdown)
       adns_processany(bg->dns);
-    }
   }
+  Lck_AssertHeld(&bg->mtx);
   VSL(SLT_Debug, 0, "disco: bgthread shutdown");
-  Lck_Lock(&bg->mtx);
   bg->gen = 0;
   adns_finish(bg->dns);
-  AZ(pthread_cond_signal(&bg->cond));
+  AZ(pthread_cond_broadcast(&bg->cond));
   Lck_Unlock(&bg->mtx);
   pthread_exit(0);
   return NULL;
@@ -304,12 +304,13 @@ void vmod_disco_bgthread_kick(struct vmod_disco_bgthread *wrk, unsigned shutdown
     return;
   }
   wrk->gen++;
-  if (shutdown) {
+  if (wrk->gen == 0)
+    wrk->gen++;
+  if (shutdown)
     wrk->shutdown++;
-  }
+
   AZ(pthread_cond_signal(&wrk->cond));
   Lck_Unlock(&wrk->mtx);
-  AZ(pthread_join(wrk->thr, NULL));
 }
 
 void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp)
@@ -322,6 +323,7 @@ void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp)
   CHECK_OBJ_NOTNULL(bg, VMOD_DISCO_BGTHREAD_MAGIC);
   if (bg->gen) {
     vmod_disco_bgthread_kick(bg, 1);
+    AZ(pthread_join(bg->thr, NULL));
   }
   AZ(bg->gen);
   AZ(pthread_cond_destroy(&bg->cond));
