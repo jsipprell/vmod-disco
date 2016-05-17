@@ -115,7 +115,8 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
         }
       }
       c++;
-      continue;
+      if (d->srv[i].port == 0)
+        continue;
     }
     WS_Reset(ctx->ws, snap);
     u = WS_Reserve(ctx->ws, 0);
