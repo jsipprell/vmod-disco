@@ -86,7 +86,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
 
   if (ans->nrrs == 0) {
     VSL(SLT_Debug, 0, "disco: %s: %s", d->name, adns_strerror(ans->status));
-    if (ans->status == adns_s_nxdomain && ans->type == adns_r_srv && d->n_srv > 0) {
+    if ((ans->status == adns_s_nxdomain || ans->status == adns_s_nodata) && ans->type == adns_r_srv && d->n_srv > 0) {
       for (u = d->n_srv-1; d->n_srv > 0; d->n_srv--, u--) {
         if (d->srv[u].port > 0) {
           memset(&d->srv[u], 0, sizeof(d->srv[u]));
@@ -197,7 +197,7 @@ static double disco_thread_run(struct worker *wrk,
           d->query = NULL;
           VSL(SLT_Error, 0, "no response to query for '%s', giving up (next query is pending)", d->name);
           goto nextquery;
-        } else
+        } else if(interval > 1e-2)
           interval = 1e-2;
         break;
       case 0:
@@ -214,7 +214,8 @@ static double disco_thread_run(struct worker *wrk,
     if (d->nxt > now)
       continue;
 nextquery:
-    d->nxt = now + d->freq;
+    d->nxt = now + d->freq + d->fuzz;
+    d->fuzz = 0;
     AN(bg->dns);
     u = WS_Reserve(bg->ws, 0);
     l = strlen(d->name);
@@ -225,7 +226,8 @@ nextquery:
     AZ(adns_submit(bg->dns, name, adns_r_srv|adns__qtf_bigaddr,
        adns_qf_want_allaf|adns_qf_quoteok_query|adns_qf_cname_loose,
        mod, &d->query));
-    interval = 1e-3;
+    if (interval > 5e-3)
+      interval = 5e-3;
 
     VSL(SLT_Debug, 0, "disco: DNS-SD %s: Q SRV %s", d->name, name);
     WS_Release(bg->ws, 0);
