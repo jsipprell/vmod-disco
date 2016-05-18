@@ -305,7 +305,7 @@ disco_thread(struct worker *wrk, void *priv)
   Lck_Lock(&bg->mtx);
   VSL(SLT_Debug, 0, "disco: bgthread startup");
   while (!shutdown) {
-    d = disco_thread_run(wrk, bg, VTIM_real());
+    d = disco_thread_run(wrk, bg, VTIM_mono());
     Lck_AssertHeld(&bg->mtx);
     if (!bg->shutdown && bg->dns) {
       Lck_Unlock(&bg->mtx);
@@ -343,7 +343,9 @@ void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, un
   WS_Init(wrk->ws, "mii", s, sizeof(wrk->__scratch) - (s - &wrk->__scratch[0]));
 
   Lck_New(&wrk->mtx, lck_vcl);
-  AZ(pthread_cond_init(&wrk->cond, NULL));
+  AZ(pthread_condattr_init(&wrk->conda));
+  AZ(pthread_condattr_setclock(&wrk->conda, CLOCK_MONOTONIC));
+  AZ(pthread_cond_init(&wrk->cond, &wrk->conda));
   wrk->gen = 1;
   wrk->interval = interval;
   wrk->priv = priv;
@@ -388,6 +390,7 @@ void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp)
   }
   AZ(bg->gen);
   AZ(pthread_cond_destroy(&bg->cond));
+  AZ(pthread_condattr_destroy(&bg->conda));
   VSB_destroy(&bg->vsb);
   Lck_Delete(&bg->mtx);
   FREE_OBJ(bg);

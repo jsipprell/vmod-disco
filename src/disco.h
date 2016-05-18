@@ -10,6 +10,7 @@ struct vmod_disco_bgthread {
   struct lock mtx;
   unsigned gen;
   pthread_cond_t cond;
+  pthread_condattr_t conda;
   unsigned shutdown;
   double interval;
   void *priv;
