@@ -13,7 +13,7 @@
 
 #include "vsa.h"
 #include "vtim.h"
-#include "vdir.h"
+#include "vpridir.h"
 #include "vcc_disco_if.h"
 #include "disco.h"
 
@@ -23,7 +23,7 @@ vd_healthy(const struct director *d, const struct busyobj *bo, double *changed)
   disco_t *dd;
   CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
   CAST_OBJ_NOTNULL(dd, d->priv, VMOD_DISCO_DIRECTOR_MAGIC);
-  return (vdir_any_healthy(dd->vd, bo, changed));
+  return (vpridir_any_healthy(dd->vd, bo, changed));
 }
 
 static const struct director * __match_proto__(vdi_resolve_f)
@@ -36,7 +36,7 @@ vd_resolve(const struct director *d, struct worker *wrk, struct busyobj *bo)
   CHECK_OBJ_NOTNULL(bo, BUSYOBJ_MAGIC);
 
   CAST_OBJ_NOTNULL(dd, d->priv, VMOD_DISCO_DIRECTOR_MAGIC);
-  return vdir_pick_be(dd->vd, scalbn(random(), -31), bo);
+  return vpridir_pick_be(dd->vd, scalbn(random(), -31), bo);
 }
 
 static void expand_discovered_backends(disco_t *d, unsigned sz)
@@ -48,14 +48,12 @@ static void expand_discovered_backends(disco_t *d, unsigned sz)
   d->l_backends = sz;
 }
 
-static void update_vdir_add_backend(struct vdir *vdir, unsigned pri, unsigned weight, const struct director *be)
+static void update_vdir_add_backend(struct vpridir *vdir, unsigned pri, unsigned weight, const struct director *be)
 {
-  CHECK_OBJ_NOTNULL(vdir, VDIR_MAGIC);
-  /* TODO: do something with pri */
-  (void)pri;
+  CHECK_OBJ_NOTNULL(vdir, VPRIDIR_MAGIC);
 
   assert(weight <= 0xffff);
-  vdir_add_backend(vdir, be, 1.0 + scalbn(weight, -16));
+  vpridir_add_backend(vdir, be, pri, 1.0 + scalbn(weight, -16));
 }
 
 static void compact_backends(disco_t *d)
@@ -101,7 +99,7 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
     if (d->srv[i].port == 0 || recreate) {
       if (i < d->n_backends && d->addrs[i]) {
         CHECK_OBJ_NOTNULL(d->backends[i], DIRECTOR_MAGIC);
-        vdir_remove_backend(d->vd, d->backends[i]);
+        vpridir_remove_backend(d->vd, d->backends[i]);
         VRT_delete_backend(ctx, &d->backends[i]);
         AZ(d->backends[i]);
         free((void*)d->addrs[i]);
@@ -128,7 +126,7 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
     if (i < d->n_backends && d->addrs[i]) {
       if (VSA_Compare(ip, d->addrs[i])) {
         CHECK_OBJ_NOTNULL(d->backends[i], DIRECTOR_MAGIC);
-        vdir_remove_backend(d->vd, d->backends[i]);
+        vpridir_remove_backend(d->vd, d->backends[i]);
         VRT_delete_backend(ctx, &d->backends[i]);
         AZ(d->backends[i]);
         free((void*)d->addrs[i]);
@@ -170,7 +168,7 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
   for (i = d->n_srv; i < d->n_backends; i++) {
     if(d->addrs[i]) {
       AN(d->backends[i]);
-      vdir_remove_backend(d->vd, d->backends[i]);
+      vpridir_remove_backend(d->vd, d->backends[i]);
       VRT_delete_backend(ctx, &d->backends[i]);
       AZ(d->backends[i]);
       free((void*)d->addrs[i]);
@@ -282,7 +280,7 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
   d->name = b;
   d->freq = interval;
   d->fuzz = (interval / 2) + ((interval / 4) - (interval / 2) * scalbn(random(), -31));
-  vdir_new(&d->vd, d->name, vcl_name, vd_healthy, vd_resolve, d);
+  vpridir_new(&d->vd, d->name, vcl_name, vd_healthy, vd_resolve, d);
   VTAILQ_INSERT_TAIL(&vd->dirs, d, list);
   (*p)->d = d;
 
@@ -322,7 +320,7 @@ vmod_random__fini(struct vmod_disco_random **rrp)
 
   for (i = (int)rr->d->n_backends - 1; i >= 0; i--) {
     if (rr->d->backends[i]) {
-      vdir_remove_backend(rr->d->vd, rr->d->backends[i]);
+      vpridir_remove_backend(rr->d->vd, rr->d->backends[i]);
       rr->d->backends[i] = NULL;
     }
     if (rr->d->addrs[i]) {
@@ -336,7 +334,7 @@ vmod_random__fini(struct vmod_disco_random **rrp)
   free(rr->d->addrs);
   rr->d->addrs = NULL;
 
-  vdir_delete(&rr->d->vd);
+  vpridir_delete(&rr->d->vd);
   FREE_OBJ(rr->d);
   rr->d = NULL;
   rr->mod = NULL;
@@ -352,7 +350,7 @@ vmod_random_backend(VRT_CTX, struct vmod_disco_random *rr)
 {
   CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
   CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
-  CHECK_OBJ_NOTNULL(rr->d->vd, VDIR_MAGIC);
+  CHECK_OBJ_NOTNULL(rr->d->vd, VPRIDIR_MAGIC);
 
   (void)ctx;
   return rr->d->vd->dir;

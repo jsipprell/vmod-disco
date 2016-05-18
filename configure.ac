@@ -76,7 +76,8 @@ ADNS_LIBS="${LIBS}"
 LIBS="${save_LIBS}"
 AC_SUBST([ADNS_LIBS])
 
-  
+AC_ARG_VAR([ADDL_DEFS], [Additional or custom preprocessor defines])
+
 VARNISH_VMOD_INCLUDES
 VARNISH_VMOD_DIR
 VARNISH_VMODTOOL

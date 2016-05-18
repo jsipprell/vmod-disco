@@ -13,7 +13,7 @@
 
 #include "vsa.h"
 #include "vtim.h"
-#include "vdir.h"
+#include "vpridir.h"
 #include "vcc_disco_if.h"
 #include "disco.h"
 

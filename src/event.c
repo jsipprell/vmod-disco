@@ -11,7 +11,7 @@
 #include "cache/cache_director.h"
 
 #include "vtim.h"
-#include "vdir.h"
+#include "vpridir.h"
 #include "vcc_disco_if.h"
 #include "disco.h"
 

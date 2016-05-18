@@ -13,9 +13,34 @@
 
 #include "vrt.h"
 #include "vtim.h"
-#include "vdir.h"
+#include "vpridir.h"
 #include "vcc_disco_if.h"
 #include "disco.h"
+
+
+#ifdef ADNS_LOG
+static void disco_thread_dnslog(adns_state, void *priv, const char *fmt, va_list ap);
+
+#define ADNS_INIT(bg) \
+  do { \
+    AZ((bg)->dns); \
+    AZ(adns_init_logfn(&(bg)->dns, adns_if_nosigpipe|adns_if_permit_ipv4|adns_if_permit_ipv6, NULL, \
+                     disco_thread_dnslog, (bg))); \
+  } while(0)
+#else /* ! ADNS_LOG */
+#define ADNS_INIT(bg) \
+  do { \
+    AZ((bg)->dns); \
+    AZ(adns_init(&(bg)->dns, adns_if_noerrprint|adns_if_noserverwarn|adns_if_nosigpipe| \
+                             adns_if_permit_ipv4|adns_if_permit_ipv6, NULL)); \
+  } while(0)
+#endif /* ADNS_LOG */
+#define ADNS_FREE(bg) \
+  do { \
+    AN((bg)->dns); \
+    adns_finish((bg)->dns); \
+    (bg)->dns = NULL; \
+  } while(0)
 
 static void expand_srv(disco_t *d, unsigned sz)
 {
@@ -73,6 +98,34 @@ static void dump_director(disco_t *d)
     }
   }
 }
+
+#ifdef ADNS_LOG
+static void disco_thread_dnslog(adns_state dns, void *priv, const char *fmt, va_list ap)
+{
+  int l;
+  struct vmod_disco_bgthread *bg;
+
+  CAST_OBJ_NOTNULL(bg, priv, VMOD_DISCO_BGTHREAD_MAGIC);
+
+  (void)dns;
+  VSB_vprintf(bg->vsb, fmt, ap);
+  l = VSB_len(bg->vsb);
+  if (l  > 0 && bg->vsb->s_buf[l-1] == '\n') {
+    char  *data;
+
+    AZ(VSB_finish(bg->vsb));
+    data = VSB_data(bg->vsb);
+    AN(data);
+    data[l-1] = '\0';
+    if (*data) {
+      VSL(SLT_Debug, 0, data);
+    }
+    VSB_clear(bg->vsb);
+  } else {
+    assert(l < 1024);
+  }
+}
+#endif
 
 static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
 {
@@ -163,7 +216,7 @@ static double disco_thread_run(struct worker *wrk,
 {
   char *name;
   size_t l;
-  unsigned u;
+  unsigned u, npending = 0;
   double interval;
   struct vmod_disco *mod;
   disco_t *d;
@@ -183,6 +236,8 @@ static double disco_thread_run(struct worker *wrk,
       adns_answer *ans = NULL;
       void *ctx = NULL;
 
+      AN(bg->dns);
+      npending++;
       switch(adns_check(bg->dns, &d->query, &ans, &ctx)) {
       case ESRCH:
       case EAGAIN:
@@ -199,6 +254,7 @@ static double disco_thread_run(struct worker *wrk,
         disco_thread_dnsresp(ctx, d, ans);
         d->nxt = now + d->freq + d->fuzz;
         d->fuzz = 0;
+        npending--;
         break;
       default:
         WRONG("unexpected response from adns_check");
@@ -209,16 +265,18 @@ static double disco_thread_run(struct worker *wrk,
       continue;
 nextquery:
     d->nxt = now + d->freq + d->fuzz;
-    AN(bg->dns);
     u = WS_Reserve(bg->ws, 0);
     l = strlen(d->name);
     assert(u > l+2);
     name = strncpy(bg->ws->f, d->name, u-1);
     *(name + l) = '.';
     *(name + l + 1) = '\0';
+    if (!bg->dns) ADNS_INIT(bg);
+    AN(bg->dns);
     AZ(adns_submit(bg->dns, name, adns_r_srv|adns__qtf_bigaddr,
        adns_qf_want_allaf|adns_qf_quoteok_query|adns_qf_cname_loose,
        mod, &d->query));
+    npending++;
     if (interval > 5e-3)
       interval = 5e-3;
 
@@ -226,6 +284,9 @@ nextquery:
     WS_Release(bg->ws, 0);
   }
   update_rwlock_unlock(mod->mtx, NULL);
+
+  if (!npending && bg->dns)
+    ADNS_FREE(bg);
   return now + interval;
 }
 
@@ -241,13 +302,12 @@ disco_thread(struct worker *wrk, void *priv)
 
   gen = bg->gen;
   shutdown = 0;
-  AZ(adns_init(&bg->dns, adns_if_nosigpipe|adns_if_permit_ipv4|adns_if_permit_ipv6, NULL));
   Lck_Lock(&bg->mtx);
   VSL(SLT_Debug, 0, "disco: bgthread startup");
   while (!shutdown) {
     d = disco_thread_run(wrk, bg, VTIM_real());
     Lck_AssertHeld(&bg->mtx);
-    if (!bg->shutdown) {
+    if (!bg->shutdown && bg->dns) {
       Lck_Unlock(&bg->mtx);
       adns_processany(bg->dns);
       Lck_Lock(&bg->mtx);
@@ -257,13 +317,13 @@ disco_thread(struct worker *wrk, void *priv)
     Lck_AssertHeld(&bg->mtx);
     gen = bg->gen;
     shutdown = bg->shutdown;
-    if (!shutdown)
+    if (!shutdown && bg->dns)
       adns_processany(bg->dns);
   }
   Lck_AssertHeld(&bg->mtx);
   VSL(SLT_Debug, 0, "disco: bgthread shutdown");
   bg->gen = 0;
-  adns_finish(bg->dns);
+  if (bg->dns) ADNS_FREE(bg);
   AZ(pthread_cond_broadcast(&bg->cond));
   Lck_Unlock(&bg->mtx);
   pthread_exit(0);
@@ -287,6 +347,7 @@ void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, un
   wrk->gen = 1;
   wrk->interval = interval;
   wrk->priv = priv;
+  wrk->vsb = VSB_new_auto();
   WRK_BgThread(&wrk->thr, "disco", disco_thread, wrk);
   if (wrkp) {
     *wrkp = wrk;
@@ -327,6 +388,7 @@ void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp)
   }
   AZ(bg->gen);
   AZ(pthread_cond_destroy(&bg->cond));
+  VSB_destroy(&bg->vsb);
   Lck_Delete(&bg->mtx);
   FREE_OBJ(bg);
 }

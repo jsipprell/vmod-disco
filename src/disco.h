@@ -15,6 +15,7 @@ struct vmod_disco_bgthread {
   void *priv;
   adns_state dns;
   struct ws *ws;
+  struct vsb *vsb;
   unsigned char __scratch[2048];
 };
 
@@ -38,7 +39,7 @@ struct vmod_disco_director {
   unsigned magic;
 #define VMOD_DISCO_DIRECTOR_MAGIC 0x0561ffea
 
-  struct vdir *vd;
+  struct vpridir *vd;
   char *name;
   const struct vrt_backend_probe *probe;
 
