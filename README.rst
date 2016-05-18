@@ -47,6 +47,7 @@ CONTENTS
 * Object random
 * BACKEND random.backend()
 * VOID random.set_probe(PROBE)
+* VOID random.use_tcp()
 
 .. _func_dance:
 
@@ -86,6 +87,26 @@ Example
 
     sub vcl_init {
       new vdir = disco.random("myservice.service.consul", 20s);
+    }
+
+.. _func_random.use_tcp:
+
+VOID random.use_tcp()
+---------------------
+
+Prototype
+	VOID random.use_tcp()
+
+Description
+  Use TCP rather than UDP (the default) where performing DNS-SD for this director's
+  service discovery. This may be necessary for large queries due to the inherent 512
+  byte DNS udp limit (and the fact that libadns does not currently support EDNS0).
+Example
+  ::
+
+    sub vcl_init {
+      new vdir = disco.random("myservice.service.consul", 20s);
+      vdir.use_tcp();
     }
 
 .. _func_random.set_probe:

@@ -273,7 +273,7 @@ nextquery:
     *(name + l + 1) = '\0';
     if (!bg->dns) ADNS_INIT(bg);
     AN(bg->dns);
-    AZ(adns_submit(bg->dns, name, adns_r_srv|adns__qtf_bigaddr,
+    AZ(adns_submit(bg->dns, name, d->dnsflags,
        adns_qf_want_allaf|adns_qf_quoteok_query|adns_qf_cname_loose,
        mod, &d->query));
     npending++;

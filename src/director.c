@@ -278,6 +278,7 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
   }
   WS_Release((*p)->ws, e-b);
   d->name = b;
+  d->dnsflags = adns_r_srv|adns__qtf_bigaddr;
   d->freq = interval;
   d->fuzz = (interval / 2) + ((interval / 4) - (interval / 2) * scalbn(random(), -31));
   vpridir_new(&d->vd, d->name, vcl_name, vd_healthy, vd_resolve, d);
@@ -354,6 +355,21 @@ vmod_random_backend(VRT_CTX, struct vmod_disco_random *rr)
 
   (void)ctx;
   return rr->d->vd->dir;
+}
+
+VCL_VOID __match_proto__(td_disco_random_use_tcp)
+vmod_random_use_tcp(VRT_CTX, struct vmod_disco_random *rr)
+{
+  struct vmod_disco *vd;
+
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
+  CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
+  CAST_OBJ_NOTNULL(vd, rr->mod, VMOD_DISCO_MAGIC);
+
+  (void)ctx;
+  update_rwlock_wrlock(vd->mtx);
+  rr->d->dnsflags |= adns_qf_usevc;
+  update_rwlock_unlock(vd->mtx, NULL);
 }
 
 VCL_VOID __match_proto__(td_disco_random_set_probe)

@@ -45,6 +45,7 @@ struct vmod_disco_director {
 
   double nxt, freq, fuzz;
   adns_query query;
+  adns_queryflags dnsflags;
 
   dns_srv_t *srv;
   unsigned n_srv, l_srv;
