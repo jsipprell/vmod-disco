@@ -31,7 +31,7 @@ else
 	@false
 endif
 
-EXTRA_DIST = $(top_srcdir)/src/*.vcc $(top_srcdir)/src/_vdir.h $(top_srcdir)/include/*.h
+EXTRA_DIST = $(top_srcdir)/src/*.vcc
 
 CLEANFILES = $(builddir)/vcc*if.c $(builddir)/vcc*if.h \
 	$(builddir)/*.man.rst 	$(builddir)/*.3

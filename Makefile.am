@@ -5,7 +5,7 @@ SUBDIRS = src
 DISTCHECK_CONFIGURE_FLAGS = \
 	VMOD_DIR='$${libdir}/varnish/vmods'
 
-EXTRA_DIST = README.rst docs/*.rst LICENSE
+EXTRA_DIST = README.rst docs/*.rst include/vdir.h include/_vdir.h LICENSE
 
 DISTCLEANFILES = $(top_srcdir)/configure \
   $(top_srcdir)/docs/vmod_*.man.rst $(top_srcdir)/docs/vmod_*.rst 
