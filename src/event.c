@@ -112,7 +112,7 @@ vmod_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
     if (default_mod == NULL && warmed_mod != NULL)
       default_mod = warmed_mod;
     warmed_mod = vd;
-    vmod_disco_bgthread_start(&vd->wrk, vd, 1.0);
+    vmod_disco_bgthread_start(&vd->wrk, vd, 10);
     update_rwlock_unlock(vd->mtx, NULL);
     AZ(pthread_mutex_unlock(&global_mtx));
     break;

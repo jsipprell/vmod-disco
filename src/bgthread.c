@@ -255,14 +255,19 @@ static double disco_thread_run(struct worker *wrk,
         d->nxt = now + d->freq + d->fuzz;
         d->fuzz = 0;
         npending--;
+        if (now + interval > d->nxt)
+          interval = d->nxt - now;
         break;
       default:
         WRONG("unexpected response from adns_check");
       }
       continue;
     }
-    if (d->nxt > now)
+    if (d->nxt > now) {
+      if (now + interval > d->nxt)
+        interval = d->nxt - now;
       continue;
+    }
 nextquery:
     d->nxt = now + d->freq + d->fuzz;
     u = WS_Reserve(bg->ws, 0);
