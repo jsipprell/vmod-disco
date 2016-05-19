@@ -74,7 +74,15 @@ AC_CHECK_LIB(adns, [adns_init],[],
   [AC_MSG_ERROR([Cannot link to libadns, maybe try --libdir?])])
 ADNS_LIBS="${LIBS}"
 LIBS="${save_LIBS}"
-AC_SUBST([ADNS_LIBS])
+AC_SUBST(ADNS_LIBS)
+
+save_LIBS="${LIBS}"
+LIBS=""
+AC_CHECK_LIB(rt, clock_gettime)
+RT_LIBS="${LIBS}"
+LIBS="${save_LIBS} ${RT_LIBS}"
+AC_CHECK_FUNCS([clock_gettime])
+AC_SUBST(RT_LIBS)
 
 AC_ARG_VAR([ADDL_DEFS], [Additional or custom preprocessor defines])
 

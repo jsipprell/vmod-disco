@@ -305,7 +305,11 @@ disco_thread(struct worker *wrk, void *priv)
   Lck_Lock(&bg->mtx);
   VSL(SLT_Debug, 0, "disco: bgthread startup");
   while (!shutdown) {
+#ifdef HAVE_CLOCK_GETTIME
     d = disco_thread_run(wrk, bg, VTIM_mono());
+#else
+    d = disco_thread_run(wrk, bg, VTIM_real());
+#endif
     Lck_AssertHeld(&bg->mtx);
     if (!bg->shutdown && bg->dns) {
       Lck_Unlock(&bg->mtx);
@@ -343,17 +347,20 @@ void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, un
   WS_Init(wrk->ws, "mii", s, sizeof(wrk->__scratch) - (s - &wrk->__scratch[0]));
 
   Lck_New(&wrk->mtx, lck_vcl);
+#ifdef HAVE_CLOCK_GETTIME
   AZ(pthread_condattr_init(&wrk->conda));
   AZ(pthread_condattr_setclock(&wrk->conda, CLOCK_MONOTONIC));
   AZ(pthread_cond_init(&wrk->cond, &wrk->conda));
+#else
+  AZ(pthread_cond_init(&wrk->cond, NULL));
+#endif
   wrk->gen = 1;
   wrk->interval = interval;
   wrk->priv = priv;
   wrk->vsb = VSB_new_auto();
   WRK_BgThread(&wrk->thr, "disco", disco_thread, wrk);
-  if (wrkp) {
+  if (wrkp)
     *wrkp = wrk;
-  }
 }
 
 void vmod_disco_bgthread_kick(struct vmod_disco_bgthread *wrk, unsigned shutdown)
@@ -390,7 +397,9 @@ void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp)
   }
   AZ(bg->gen);
   AZ(pthread_cond_destroy(&bg->cond));
+#ifdef HAVE_CLOCK_GETTIME
   AZ(pthread_condattr_destroy(&bg->conda));
+#endif
   VSB_destroy(&bg->vsb);
   Lck_Delete(&bg->mtx);
   FREE_OBJ(bg);

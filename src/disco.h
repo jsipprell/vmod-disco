@@ -10,7 +10,9 @@ struct vmod_disco_bgthread {
   struct lock mtx;
   unsigned gen;
   pthread_cond_t cond;
+#ifdef HAVE_CLOCK_GETTIME
   pthread_condattr_t conda;
+#endif
   unsigned shutdown;
   double interval;
   void *priv;
