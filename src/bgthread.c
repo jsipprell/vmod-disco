@@ -273,9 +273,7 @@ nextquery:
     *(name + l + 1) = '\0';
     if (!bg->dns) ADNS_INIT(bg);
     AN(bg->dns);
-    AZ(adns_submit(bg->dns, name, d->dnsflags,
-       adns_qf_want_allaf|adns_qf_quoteok_query|adns_qf_cname_loose,
-       mod, &d->query));
+    AZ(adns_submit(bg->dns, name, adns_r_srv, d->dnsflags, mod, &d->query));
     npending++;
     if (interval > 5e-3)
       interval = 5e-3;

@@ -319,7 +319,7 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
   }
   WS_Release((*p)->ws, e-b);
   d->name = b;
-  d->dnsflags = adns_r_srv|adns__qtf_bigaddr;
+  d->dnsflags = adns_qf_want_allaf|adns_qf_quoteok_query|adns_qf_cname_loose;
   d->freq = interval;
   d->fuzz = (interval / 2) + ((interval / 4) - (interval / 2) * scalbn(random(), -31));
   vpridir_new(&d->vd, d->name, vcl_name, vd_healthy, vd_resolve, d);
