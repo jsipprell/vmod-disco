@@ -372,7 +372,7 @@ void vmod_disco_bgthread_kick(struct vmod_disco_bgthread *wrk, unsigned shutdown
 
   Lck_Lock(&wrk->mtx);
   if(!wrk->gen) {
-    AN(shutdown);
+    AN(wrk->shutdown);
     Lck_Unlock(&wrk->mtx);
     return;
   }
@@ -394,10 +394,8 @@ void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp)
   *wrkp = NULL;
 
   CHECK_OBJ_NOTNULL(bg, VMOD_DISCO_BGTHREAD_MAGIC);
-  if (bg->gen) {
-    vmod_disco_bgthread_kick(bg, 1);
-    AZ(pthread_join(bg->thr, NULL));
-  }
+  vmod_disco_bgthread_kick(bg, 1);
+  AZ(pthread_join(bg->thr, NULL));
   AZ(bg->gen);
   AZ(pthread_cond_destroy(&bg->cond));
 #ifdef HAVE_CLOCK_GETTIME
