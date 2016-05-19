@@ -81,7 +81,48 @@ static void compact_backends(disco_t *d)
   assert(d->n_srv == d->n_backends);
 }
 
-static void update_backends(VRT_CTX, disco_t *d, short recreate)
+static const char *mkvclname(struct ws *ws, struct vmod_disco *vd,
+                             const char *prefix, const char *suffix,
+                             unsigned short port)
+{
+  int i;
+  unsigned u, l;
+  disco_t *d;
+  char *cp, *name;
+
+  CHECK_OBJ_NOTNULL(ws, WS_MAGIC);
+  CHECK_OBJ_NOTNULL(vd, VMOD_DISCO_MAGIC);
+
+  l = strlen(prefix) + strlen(suffix);
+  u = WS_Reserve(ws, 0);
+  assert(u > l+8);
+  name = ws->f;
+  strcpy(name, prefix);
+  cp = name + strlen(prefix);
+  *cp++ = '_';
+  strcpy(cp, suffix);
+  cp = name + l + 1;
+  AZ(*cp);
+
+  VTAILQ_FOREACH(d, &vd->dirs, list) {
+    CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
+    for(i = 0; i < d->n_backends; i++) {
+      if (i >= d->n_srv || !d->addrs[i] || !d->srv[i].port)
+        continue;
+      CHECK_OBJ_NOTNULL(d->backends[i], DIRECTOR_MAGIC);
+      if (strcasecmp(d->backends[i]->vcl_name, name))
+        continue;
+      sprintf(cp, "_%hu", port);
+      goto madevclname;
+    }
+  }
+
+madevclname:
+  WS_Release(ws, strlen(name)+1);
+  return name;
+}
+
+static void update_backends(VRT_CTX, struct vmod_disco *vd, disco_t *d, short recreate)
 {
   unsigned u,i,c = 0;
   struct suckaddr *ip;
@@ -144,6 +185,11 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
     if (!d->addrs[i]) {
       assert(VSA_Sane(ip));
       INIT_OBJ(&be, VRT_BACKEND_MAGIC);
+      AN(d->srv[i].name);
+      be.vcl_name = mkvclname(ctx->ws, vd, d->vd->dir->vcl_name, d->srv[i].name, VSA_Port(ip));
+      AN(be.vcl_name);
+      be.probe = d->probe;
+      be.hosthdr = d->name;
       switch (VSA_Get_Proto(ip)) {
       case PF_INET6:
         AN(d->addrs[i] = be.ipv6_suckaddr = VSA_Clone(ip));
@@ -154,11 +200,6 @@ static void update_backends(VRT_CTX, disco_t *d, short recreate)
       default:
         WRONG("Protocol family not supported (was neither PF_INET6 nor PF_INET)");
       }
-      AN(d->srv[i].name);
-      be.vcl_name = WS_Printf(ctx->ws, "%s_%s", d->vd->dir->vcl_name, d->srv[i].name);
-      AN(be.vcl_name);
-      be.probe = d->probe;
-      be.hosthdr = d->name;
       d->backends[i] = VRT_new_backend(ctx, &be);
       AN(d->backends[i]);
       update_vdir_add_backend(d->vd, d->srv[i].priority, d->srv[i].weight, d->backends[i]);
@@ -227,7 +268,7 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
       if (wrlock && changes) {
         VSL(SLT_Debug, 0, "%u changes to %s director", changes, d->name);
         d->changes = 0;
-        update_backends(ctx,d,0);
+        update_backends(ctx,vd,d,0);
       }
     }
   }
@@ -388,7 +429,7 @@ vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_ba
   if (ctx->ws) {
     VTAILQ_FOREACH(d, &vd->dirs, list) {
       d->changes = 0;
-      update_backends(ctx,d,1);
+      update_backends(ctx,vd,d,1);
     }
   }
   update_rwlock_unlock(vd->mtx, NULL);
