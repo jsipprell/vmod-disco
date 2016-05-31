@@ -17,7 +17,7 @@
 #include "vcc_disco_if.h"
 #include "disco.h"
 
-static unsigned __match_proto__(vdi_healthy)
+static unsigned __match_proto__(vdi_healthy_f)
 vd_healthy(const struct director *d, const struct busyobj *bo, double *changed)
 {
   disco_t *dd;
