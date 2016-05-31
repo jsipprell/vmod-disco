@@ -47,6 +47,7 @@ static void expand_srv(disco_t *d, unsigned sz)
   CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
 
   d->srv = realloc(d->srv, sz * sizeof(*d->srv));
+  AN(d->srv);
   d->l_srv = sz;
 }
 
