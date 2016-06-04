@@ -26,7 +26,26 @@ AC_PROG_MAKE_SET
 
 AC_ARG_WITH([libadns],
   AS_HELP_STRING([--with-libadns=PATH], [Location of libadns (auto)]),
-  [LIBADNS_INCLUDES="$withval"],[LIBADNS_INCLUDES='auto'])
+  [dnl
+    found_incl=
+    found_libdir=
+    for d in `echo "${withval}/include:${withval}" | tr : " "`; do
+      if test -d "$d"; then
+        found_incl="$d"
+        break
+      fi
+    done
+    test x"$found_incl" != x"" || found_incl="$withval"
+    for d in `echo "${withval}/lib64:${withval}/lib:${withval}" | tr : " "`; do
+      if test -d "$d"; then
+        found_libdir="$d"
+        break
+      fi
+    done
+    LIBADNS_INCLUDES="$found_incl"
+    AS_VAR_IF(found_libdir,[""],[],[AX_APPEND_FLAG(-L$found_libdir, [LDFLAGS])])
+  ],[LIBADNS_INCLUDES='auto'])
+
 AC_CHECK_PROGS(RST2MAN, [rst2man rst2man.py], "no")
 if test x"$RST2MAN" = x"no"; then
   AC_MSG_WARN([rst2man not found - not building man pages])
@@ -54,33 +73,33 @@ PKG_CHECK_VAR([LIBVARNISHAPI_SBINDIR], [varnishapi], [sbindir])
 AC_SUBST([LIBVARNISHAPI_DATAROOTDIR])
 
 save_CPPFLAGS="$CPPFLAGS"
-if test x"$LIBADNS_INCLUDES" != x"auto"; then
+save_LIBS="$LIBS"
+
+AS_VAR_IF(LIBADNS_INCLUDES, ["auto"], [], [dnl
   CPPFLAGS="${CPPFLAGS} -I${LIBADNS_INCLUDES}"
-fi
-AC_CHECK_HEADERS([adns.h],
-				  [AC_DEFINE([HAVE_LIBADNS], [1], [Define if we have libadns])],
-				  [AC_MSG_ERROR([Cannot find libadns header file: adns.h])])
-
-CPPFLAGS="${save_CPPFLAGS}"
-
-if test x"$LIBADNS_INCLUDES" != x"auto"; then
   ADNS_CPPFLAGS="-I${LIBADNS_INCLUDES}"
-  AC_SUBST([ADNS_CPPFLAGS])
-fi
+  AX_APPEND_FLAG($ADNS_CPPFLAGS, [CPPFLAGS])
+])
 
-save_LIBS="${LIBS}"
-LIBS=""
-AC_CHECK_LIB(adns, [adns_init],[],
-  [AC_MSG_ERROR([Cannot link to libadns, maybe try --libdir?])])
-ADNS_LIBS="${LIBS}"
-LIBS="${save_LIBS}"
-AC_SUBST(ADNS_LIBS)
+ADNS_LIBS=
+AX_HAVE_ADNS([dnl
+    AC_DEFINE([HAVE_LIBADNS], [1], [Define if we have libadns])
+    ADNS_LIBS='-ladns'
+    AX_APPEND_FLAG(-ladns, [LIBS])
+  ], [dnl
+    AC_MSG_ERROR([Cannot find libadns])
+  ])
 
-save_LIBS="${LIBS}"
+AC_SUBST([ADNS_CPPFLAGS])
+AC_SUBST([ADNS_LIBS])
+
+CPPFLAGS="$save_CPPFLAGS"
+
 LIBS=""
 AC_CHECK_LIB(rt, clock_gettime)
-RT_LIBS="${LIBS}"
-LIBS="${save_LIBS} ${RT_LIBS}"
+RT_LIBS="$LIBS"
+AS_VAR_IF(LIBS, [""], [LIBS="$save_LIBS"], [LIBS="$save_LIBS $RT_LIBS"])
+
 AC_CHECK_FUNCS([clock_gettime])
 AC_SUBST(RT_LIBS)
 
