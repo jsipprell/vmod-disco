@@ -21,3 +21,4 @@ unsigned vpridir_remove_backend(struct vpridir *, VCL_BACKEND be);
 unsigned vpridir_any_healthy(struct vpridir *, const struct busyobj *,
     double *changed);
 VCL_BACKEND vpridir_pick_be(struct vpridir *, double w, const struct busyobj *);
+VCL_BACKEND vpridir_pick_ben(struct vpridir *, unsigned i, const struct busyobj *);

@@ -172,6 +172,23 @@ bepicked:
   return (be);
 }
 
+VCL_BACKEND vpridir_pick_ben(struct vpridir *vp, unsigned i, const struct busyobj *bo)
+{
+  VCL_BACKEND be = NULL;
+  vpridir_t *v;
+
+  vpridir_rdlock(vp);
+  VTAILQ_FOREACH(v, &vp->vdirs, list) {
+    CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
+    be = vdir_pick_ben(v->vd, i, bo);
+    if (be)
+      goto benpicked;
+  }
+benpicked:
+  vpridir_unlock(vp);
+  return (be);
+}
+
 unsigned vpridir_any_healthy(struct vpridir *vp, const struct busyobj *bo,
     double *changed)
 {

@@ -58,16 +58,16 @@ struct vmod_disco_director {
   struct director **backends;
   unsigned n_backends, l_backends;
 
+  void *priv;
   VTAILQ_ENTRY(vmod_disco_director) list;
 };
 
 typedef struct vmod_disco_director disco_t;
 
-struct vmod_disco_random {
+struct vmod_disco_selector {
   unsigned magic;
-#define VMOD_DISCO_ROUND_ROBIN_MAGIC 0x4eef931a
+#define VMOD_DISCO_SELECTOR_MAGIC 0xaa1c87b2
   disco_t *d;
-
   struct vmod_disco *mod;
   struct ws *ws;
   unsigned char __scratch[2048];

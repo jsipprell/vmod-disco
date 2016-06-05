@@ -189,7 +189,7 @@ vdir_any_healthy(struct vdir *vd, const struct busyobj *bo, double *changed)
   return (retval);
 }
 
-unsigned
+static unsigned
 vdir_pick_by_weight(const struct vdir *vd, double w,
     const struct vbitmap *blacklist)
 {
@@ -207,6 +207,35 @@ vdir_pick_by_weight(const struct vdir *vd, double w,
       return (u);
   }
   WRONG("");
+}
+
+VCL_BACKEND
+vdir_pick_ben(struct vdir *vd, unsigned i, const struct busyobj *bo)
+{
+  unsigned u, c = 0;
+  VCL_BACKEND be = NULL;
+
+  CHECK_OBJ_ORNULL(bo, BUSYOBJ_MAGIC);
+  vdir_rdlock(vd);
+  for (u = 0; u < vd->n_backend; u++) {
+    if (vd->backend[u]->healthy(vd->backend[u], bo, NULL)) {
+      vbit_clr(vd->vbm, u);
+      c++;
+    } else
+      vbit_set(vd->vbm, u);
+  }
+  if (c) {
+    i %= c;
+    for (u = 0; u < vd->n_backend; u++) {
+      if (!vbit_test(vd->vbm, u) && !i--) {
+        be = vd->backend[u];
+        CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
+        break;
+      }
+    }
+  }
+  vdir_unlock(vd);
+  return (be);
 }
 
 VCL_BACKEND
@@ -235,25 +264,3 @@ vdir_pick_be(struct vdir *vd, double w, const struct busyobj *bo)
   return (be);
 }
 
-VCL_BACKEND
-vdir_exact_be(struct vdir *vd, double w, const struct busyobj *bo, int *healthy)
-{
-  unsigned u;
-  VCL_BACKEND be = NULL;
-
-
-  CHECK_OBJ_ORNULL(bo, BUSYOBJ_MAGIC);
-
-  vdir_rdlock(vd);
-  for (u = 0; u < vd->n_backend; u++) {
-    if (vd->weight[u] == w) {
-      be = vd->backend[u];
-      if (healthy) {
-        *healthy = be->healthy(be, bo, NULL);
-      }
-      break;
-    }
-  }
-  vdir_unlock(vd);
-  return (be);
-}

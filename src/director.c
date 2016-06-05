@@ -17,6 +17,21 @@
 #include "vcc_disco_if.h"
 #include "disco.h"
 
+#include "atomic.h"
+
+struct vmod_disco_random {
+  unsigned magic;
+#define VMOD_DISCO_RANDOM_MAGIC 0x4eef931a
+  struct vmod_disco_selector selector;
+};
+
+struct vmod_disco_roundrobin {
+  unsigned magic;
+#define VMOD_DISCO_ROUNDROBIN_MAGIC 0xa1e9fee4
+  vatomic_uint32_t idx;
+  struct vmod_disco_selector selector;
+};
+
 static unsigned __match_proto__(vdi_healthy_f)
 vd_healthy(const struct director *d, const struct busyobj *bo, double *changed)
 {
@@ -37,6 +52,22 @@ vd_resolve(const struct director *d, struct worker *wrk, struct busyobj *bo)
 
   CAST_OBJ_NOTNULL(dd, d->priv, VMOD_DISCO_DIRECTOR_MAGIC);
   return vpridir_pick_be(dd->vd, scalbn(random(), -31), bo);
+}
+
+static const struct director * __match_proto__(vdi_resolve_f)
+vd_resolve_rr(const struct director *d, struct worker *wrk, struct busyobj *bo)
+{
+  disco_t *dd;
+  struct vmod_disco_roundrobin *rr;
+
+  CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(wrk, WORKER_MAGIC);
+  CHECK_OBJ_NOTNULL(bo, BUSYOBJ_MAGIC);
+
+  CAST_OBJ_NOTNULL(dd, d->priv, VMOD_DISCO_DIRECTOR_MAGIC);
+  CAST_OBJ_NOTNULL(rr, dd->priv, VMOD_DISCO_ROUNDROBIN_MAGIC);
+
+  return vpridir_pick_ben(dd->vd, VATOMIC_INC32(dd->vd, rr->idx), bo);
 }
 
 static void expand_discovered_backends(disco_t *d, unsigned sz)
@@ -275,10 +306,9 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
   update_rwlock_unlock(vd->mtx, (wrlock ? vd->mtx : NULL));
 }
 
-
-VCL_VOID __match_proto__(td_disco_random__init)
-vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
-                       struct vmod_priv *priv, const char *name, double interval)
+static void vmod_selector_init(VRT_CTX, struct vmod_disco_selector *p, const char *vcl_name,
+                               struct vmod_priv *priv, const char *name, double interval,
+                               vdi_healthy_f hfn, vdi_resolve_f rfn, void *vdi_priv)
 {
   struct vmod_disco *vd;
   unsigned u;
@@ -287,24 +317,20 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
   disco_t *d;
 
   CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
-  AN(priv);
-
-  current_vmod(priv);
   CAST_OBJ_NOTNULL(vd, priv->priv, VMOD_DISCO_MAGIC);
 
-  ALLOC_OBJ(*p, VMOD_DISCO_ROUND_ROBIN_MAGIC);
-  AN(*p);
-  (*p)->mod = vd;
-  (*p)->ws = (struct ws*)PRNDUP(&(*p)->__scratch[0]);
-  s = ((unsigned char*)(*p)->ws) + PRNDUP(sizeof(struct ws));
-  WS_Init((*p)->ws, "mii", s, sizeof((*p)->__scratch) - (s - &(*p)->__scratch[0]));
-
+  AN(p);
+  INIT_OBJ(p, VMOD_DISCO_SELECTOR_MAGIC);
+  p->mod = vd;
+  p->ws = (struct ws*)PRNDUP(&p->__scratch[0]);
+  s = ((unsigned char*)p->ws) + PRNDUP(sizeof(struct ws));
+  WS_Init(p->ws, "mii", s, sizeof(p->__scratch) - (s - &p->__scratch[0]));
   update_rwlock_wrlock(vd->mtx);
   ALLOC_OBJ(d, VMOD_DISCO_DIRECTOR_MAGIC);
   AN(d);
-  u = WS_Reserve((*p)->ws, strlen(name)+1);
+  u = WS_Reserve(p->ws, strlen(name)+1);
   AN(u);
-  b = (*p)->ws->f;
+  b = p->ws->f;
   e = b + (u-1);
   strcpy(b, name);
   assert(e > b);
@@ -317,35 +343,62 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
       break;
     }
   }
-  WS_Release((*p)->ws, e-b);
+  WS_Release(p->ws, e-b);
   d->name = b;
   d->dnsflags = adns_qf_want_allaf|adns_qf_quoteok_query|adns_qf_cname_loose;
   d->freq = interval;
   d->fuzz = (interval / 2) + ((interval / 4) - (interval / 2) * scalbn(random(), -31));
-  vpridir_new(&d->vd, d->name, vcl_name, vd_healthy, vd_resolve, d);
+  d->priv = vdi_priv;
+  vpridir_new(&d->vd, d->name, vcl_name, (hfn ? hfn : vd_healthy), (rfn ? rfn : vd_resolve), d);
   VTAILQ_INSERT_TAIL(&vd->dirs, d, list);
-  (*p)->d = d;
+  p->d = d;
 
   update_rwlock_unlock(vd->mtx, NULL);
   if (vd->wrk)
     vmod_disco_bgthread_kick(vd->wrk, 0);
 }
 
-VCL_VOID __match_proto__(td_disco_random__fini)
-vmod_random__fini(struct vmod_disco_random **rrp)
+VCL_VOID __match_proto__(td_disco_roundrobin__init)
+vmod_roundrobin__init(VRT_CTX, struct vmod_disco_roundrobin **p, const char *vcl_name,
+                       struct vmod_priv *priv, const char *name, double interval)
+{
+  CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+  AN(priv);
+  AN(p);
+  current_vmod(priv);
+
+  ALLOC_OBJ(*p, VMOD_DISCO_ROUNDROBIN_MAGIC);
+  AN(*p);
+  vmod_selector_init(ctx, &(*p)->selector, vcl_name, priv, name, interval,
+                     vd_healthy, vd_resolve_rr, (*p));
+}
+
+
+VCL_VOID __match_proto__(td_disco_random__init)
+vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
+                       struct vmod_priv *priv, const char *name, double interval)
+{
+  CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+  AN(priv);
+  AN(p);
+  current_vmod(priv);
+
+  ALLOC_OBJ(*p, VMOD_DISCO_RANDOM_MAGIC);
+  AN(*p);
+  vmod_selector_init(ctx, &(*p)->selector, vcl_name, priv, name, interval,
+                     vd_healthy, vd_resolve, (*p));
+}
+
+static void
+vmod_selector_fini(struct vmod_disco_selector *p)
 {
   int i;
   struct vmod_disco *vd;
-  struct vmod_disco_random *rr;
   struct lock *vdlock = NULL;
 
-  AN(rrp);
-  rr = *rrp;
-  *rrp = NULL;
-
-  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
-  CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
-  CAST_OBJ_NOTNULL(vd, rr->mod, VMOD_DISCO_MAGIC);
+  CHECK_OBJ_NOTNULL(p, VMOD_DISCO_SELECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(p->d, VMOD_DISCO_DIRECTOR_MAGIC);
+  CAST_OBJ_NOTNULL(vd, p->mod, VMOD_DISCO_MAGIC);
   CHECK_OBJ_ORNULL(vd->wrk, VMOD_DISCO_BGTHREAD_MAGIC);
   if (vd->wrk) {
     vdlock = &vd->wrk->mtx;
@@ -353,79 +406,135 @@ vmod_random__fini(struct vmod_disco_random **rrp)
   }
 
   update_rwlock_wrlock(vd->mtx);
-  VTAILQ_REMOVE(&vd->dirs, rr->d, list);
+  VTAILQ_REMOVE(&vd->dirs, p->d, list);
 
-  if (rr->d->l_srv > 0)
-    free(rr->d->srv);
-  rr->d->l_srv = rr->d->n_srv = 0;
-  rr->d->srv = NULL;
+  if (p->d->l_srv > 0)
+    free(p->d->srv);
+  p->d->l_srv = p->d->n_srv = 0;
+  p->d->srv = NULL;
 
-  for (i = (int)rr->d->n_backends - 1; i >= 0; i--) {
-    if (rr->d->backends[i]) {
-      vpridir_remove_backend(rr->d->vd, rr->d->backends[i]);
-      rr->d->backends[i] = NULL;
+  for (i = (int)p->d->n_backends - 1; i >= 0; i--) {
+    if (p->d->backends[i]) {
+      vpridir_remove_backend(p->d->vd, p->d->backends[i]);
+      p->d->backends[i] = NULL;
     }
-    if (rr->d->addrs[i]) {
-      free((void*)rr->d->addrs[i]);
-      rr->d->addrs[i] = NULL;
+    if (p->d->addrs[i]) {
+      free((void*)p->d->addrs[i]);
+      p->d->addrs[i] = NULL;
     }
   }
-  rr->d->n_backends = rr->d->l_backends = 0;
-  free(rr->d->backends);
-  rr->d->backends = NULL;
-  free(rr->d->addrs);
-  rr->d->addrs = NULL;
+  p->d->n_backends = p->d->l_backends = 0;
+  free(p->d->backends);
+  p->d->backends = NULL;
+  free(p->d->addrs);
+  p->d->addrs = NULL;
 
-  vpridir_delete(&rr->d->vd);
-  FREE_OBJ(rr->d);
-  rr->d = NULL;
-  rr->mod = NULL;
-  FREE_OBJ(rr);
+  vpridir_delete(&p->d->vd);
+  FREE_OBJ(p->d);
+  p->d = NULL;
+  p->mod = NULL;
   update_rwlock_unlock(vd->mtx, NULL);
 
   if (vdlock)
     Lck_Unlock(vdlock);
 }
 
+VCL_VOID __match_proto__(td_disco_roundrobin__fini)
+vmod_roundrobin__fini(struct vmod_disco_roundrobin **rrp)
+{
+  struct vmod_disco_roundrobin *rr;
+  AN(rrp);
+  rr = *rrp;
+  *rrp = NULL;
+
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUNDROBIN_MAGIC);
+  vmod_selector_fini(&rr->selector);
+  FREE_OBJ(rr);
+}
+
+VCL_VOID __match_proto__(td_disco_random__fini)
+vmod_random__fini(struct vmod_disco_random **rrp)
+{
+  struct vmod_disco_random *rr;
+
+  AN(rrp);
+  rr = *rrp;
+  *rrp = NULL;
+
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_RANDOM_MAGIC);
+  vmod_selector_fini(&rr->selector);
+  FREE_OBJ(rr);
+}
+
+VCL_BACKEND __match_proto__(td_disco_roundrobin_backend)
+vmod_roundrobin_backend(VRT_CTX, struct vmod_disco_roundrobin *rr)
+{
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUNDROBIN_MAGIC);
+  CHECK_OBJ_NOTNULL(&rr->selector, VMOD_DISCO_SELECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(rr->selector.d, VMOD_DISCO_DIRECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(rr->selector.d->vd, VPRIDIR_MAGIC);
+
+  (void)ctx;
+  return rr->selector.d->vd->dir;
+}
+
 VCL_BACKEND __match_proto__(td_disco_random_backend)
 vmod_random_backend(VRT_CTX, struct vmod_disco_random *rr)
 {
-  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
-  CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
-  CHECK_OBJ_NOTNULL(rr->d->vd, VPRIDIR_MAGIC);
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_RANDOM_MAGIC);
+  CHECK_OBJ_NOTNULL(&rr->selector, VMOD_DISCO_SELECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(rr->selector.d, VMOD_DISCO_DIRECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(rr->selector.d->vd, VPRIDIR_MAGIC);
 
   (void)ctx;
-  return rr->d->vd->dir;
+  return rr->selector.d->vd->dir;
+}
+
+static void
+vmod_selector_use_tcp(struct vmod_disco_selector *p)
+{
+  struct vmod_disco *vd;
+
+  CHECK_OBJ_NOTNULL(p, VMOD_DISCO_SELECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(p->d, VMOD_DISCO_DIRECTOR_MAGIC);
+  CAST_OBJ_NOTNULL(vd, p->mod, VMOD_DISCO_MAGIC);
+
+  update_rwlock_wrlock(vd->mtx);
+  p->d->dnsflags |= adns_qf_usevc;
+  update_rwlock_unlock(vd->mtx, NULL);
+}
+
+VCL_VOID __match_proto__(td_disco_roundrobin_use_tcp)
+vmod_roundrobin_use_tcp(VRT_CTX, struct vmod_disco_roundrobin *rr)
+{
+  (void)ctx;
+
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUNDROBIN_MAGIC);
+  vmod_selector_use_tcp(&rr->selector);
 }
 
 VCL_VOID __match_proto__(td_disco_random_use_tcp)
 vmod_random_use_tcp(VRT_CTX, struct vmod_disco_random *rr)
 {
-  struct vmod_disco *vd;
-
-  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
-  CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
-  CAST_OBJ_NOTNULL(vd, rr->mod, VMOD_DISCO_MAGIC);
-
   (void)ctx;
-  update_rwlock_wrlock(vd->mtx);
-  rr->d->dnsflags |= adns_qf_usevc;
-  update_rwlock_unlock(vd->mtx, NULL);
+
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_RANDOM_MAGIC);
+  vmod_selector_use_tcp(&rr->selector);
 }
 
-VCL_VOID __match_proto__(td_disco_random_set_probe)
-vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_backend_probe *probe)
+static void
+vmod_selector_set_probe(VRT_CTX, struct vmod_disco_selector *p, const struct vrt_backend_probe *probe)
 {
   struct vmod_disco *vd;
   disco_t *d;
 
-  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUND_ROBIN_MAGIC);
-  CHECK_OBJ_NOTNULL(rr->d, VMOD_DISCO_DIRECTOR_MAGIC);
-  CAST_OBJ_NOTNULL(vd, rr->mod, VMOD_DISCO_MAGIC);
+  CHECK_OBJ_NOTNULL(p, VMOD_DISCO_SELECTOR_MAGIC);
+  CHECK_OBJ_NOTNULL(p->d, VMOD_DISCO_DIRECTOR_MAGIC);
+  CAST_OBJ_NOTNULL(vd, p->mod, VMOD_DISCO_MAGIC);
 
   (void)ctx;
   update_rwlock_wrlock(vd->mtx);
-  rr->d->probe = probe;
+  p->d->probe = probe;
   if (ctx->ws) {
     VTAILQ_FOREACH(d, &vd->dirs, list) {
       d->changes = 0;
@@ -433,4 +542,18 @@ vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_ba
     }
   }
   update_rwlock_unlock(vd->mtx, NULL);
+}
+
+VCL_VOID __match_proto__(td_disco_roundrobin_set_probe)
+vmod_roundrobin_set_probe(VRT_CTX, struct vmod_disco_roundrobin *rr, const struct vrt_backend_probe *probe)
+{
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUNDROBIN_MAGIC);
+  vmod_selector_set_probe(ctx, &rr->selector, probe);
+}
+
+VCL_VOID __match_proto__(td_disco_random_set_probe)
+vmod_random_set_probe(VRT_CTX, struct vmod_disco_random *rr, const struct vrt_backend_probe *probe)
+{
+  CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_RANDOM_MAGIC);
+  vmod_selector_set_probe(ctx, &rr->selector, probe);
 }

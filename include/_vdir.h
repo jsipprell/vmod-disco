@@ -51,6 +51,5 @@ unsigned vdir_add_backend(struct vdir *, VCL_BACKEND be, double weight);
 unsigned vdir_remove_backend(struct vdir *, VCL_BACKEND be);
 unsigned vdir_any_healthy(struct vdir *, const struct busyobj *,
     double *changed);
-unsigned vdir_pick_by_weight(const struct vdir *, double, const struct vbitmap*);
 VCL_BACKEND vdir_pick_be(struct vdir *, double w, const struct busyobj *);
-VCL_BACKEND vdir_exact_be(struct vdir *, double w, const struct busyobj *, int *);
+VCL_BACKEND vdir_pick_ben(struct vdir *, unsigned i, const struct busyobj *);

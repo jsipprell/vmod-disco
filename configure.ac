@@ -114,6 +114,14 @@ AC_PATH_PROG([VARNISHTEST], [varnishtest], [],
 AC_PATH_PROG([VARNISHD], [varnishd], [],
   [$LIBVARNISHAPI_SBINDIR:$LIBVARNISHAPI_BINDIR:$PATH])
 
+AC_CHECK_SIZEOF([void*])
+AS_CASE($target_cpu,
+  [x86_64], [have_atomicptr=$GCC],
+  [i?86], [have_atomicptr=$GCC],
+  [have_atomicptr=])
+
+AS_VAR_IF(have_atomicptr, ["yes"], [dnl
+AC_DEFINE([HAVE_ATOMICPTR], [1], [Define if the target architecture's pointers are atomic if aligned])], [])
 AC_CONFIG_FILES([
   Makefile
   src/Makefile
