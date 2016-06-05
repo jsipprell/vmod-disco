@@ -33,7 +33,7 @@ Example
       set req.backend_hint = vdir.backend();
     }
 
-$Object roundrobin(PRIV_CALL, STRING, DURATION)
+$Object round_robin(PRIV_CALL, STRING, DURATION)
 $Method VOID .use_tcp()
 $Method VOID .set_probe(PROBE)
 $Method BACKEND .backend()

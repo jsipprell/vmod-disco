@@ -25,7 +25,7 @@ struct vmod_disco_random {
   struct vmod_disco_selector selector;
 };
 
-struct vmod_disco_roundrobin {
+struct vmod_disco_round_robin {
   unsigned magic;
 #define VMOD_DISCO_ROUNDROBIN_MAGIC 0xa1e9fee4
   vatomic_uint32_t idx;
@@ -58,7 +58,7 @@ static const struct director * __match_proto__(vdi_resolve_f)
 vd_resolve_rr(const struct director *d, struct worker *wrk, struct busyobj *bo)
 {
   disco_t *dd;
-  struct vmod_disco_roundrobin *rr;
+  struct vmod_disco_round_robin *rr;
 
   CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
   CHECK_OBJ_NOTNULL(wrk, WORKER_MAGIC);
@@ -358,8 +358,8 @@ static void vmod_selector_init(VRT_CTX, struct vmod_disco_selector *p, const cha
     vmod_disco_bgthread_kick(vd->wrk, 0);
 }
 
-VCL_VOID __match_proto__(td_disco_roundrobin__init)
-vmod_roundrobin__init(VRT_CTX, struct vmod_disco_roundrobin **p, const char *vcl_name,
+VCL_VOID __match_proto__(td_disco_round_robin__init)
+vmod_round_robin__init(VRT_CTX, struct vmod_disco_round_robin **p, const char *vcl_name,
                        struct vmod_priv *priv, const char *name, double interval)
 {
   CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
@@ -439,10 +439,10 @@ vmod_selector_fini(struct vmod_disco_selector *p)
     Lck_Unlock(vdlock);
 }
 
-VCL_VOID __match_proto__(td_disco_roundrobin__fini)
-vmod_roundrobin__fini(struct vmod_disco_roundrobin **rrp)
+VCL_VOID __match_proto__(td_disco_round_robin__fini)
+vmod_round_robin__fini(struct vmod_disco_round_robin **rrp)
 {
-  struct vmod_disco_roundrobin *rr;
+  struct vmod_disco_round_robin *rr;
   AN(rrp);
   rr = *rrp;
   *rrp = NULL;
@@ -466,8 +466,8 @@ vmod_random__fini(struct vmod_disco_random **rrp)
   FREE_OBJ(rr);
 }
 
-VCL_BACKEND __match_proto__(td_disco_roundrobin_backend)
-vmod_roundrobin_backend(VRT_CTX, struct vmod_disco_roundrobin *rr)
+VCL_BACKEND __match_proto__(td_disco_round_robin_backend)
+vmod_round_robin_backend(VRT_CTX, struct vmod_disco_round_robin *rr)
 {
   CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUNDROBIN_MAGIC);
   CHECK_OBJ_NOTNULL(&rr->selector, VMOD_DISCO_SELECTOR_MAGIC);
@@ -504,8 +504,8 @@ vmod_selector_use_tcp(struct vmod_disco_selector *p)
   update_rwlock_unlock(vd->mtx, NULL);
 }
 
-VCL_VOID __match_proto__(td_disco_roundrobin_use_tcp)
-vmod_roundrobin_use_tcp(VRT_CTX, struct vmod_disco_roundrobin *rr)
+VCL_VOID __match_proto__(td_disco_round_robin_use_tcp)
+vmod_round_robin_use_tcp(VRT_CTX, struct vmod_disco_round_robin *rr)
 {
   (void)ctx;
 
@@ -544,8 +544,8 @@ vmod_selector_set_probe(VRT_CTX, struct vmod_disco_selector *p, const struct vrt
   update_rwlock_unlock(vd->mtx, NULL);
 }
 
-VCL_VOID __match_proto__(td_disco_roundrobin_set_probe)
-vmod_roundrobin_set_probe(VRT_CTX, struct vmod_disco_roundrobin *rr, const struct vrt_backend_probe *probe)
+VCL_VOID __match_proto__(td_disco_round_robin_set_probe)
+vmod_round_robin_set_probe(VRT_CTX, struct vmod_disco_round_robin *rr, const struct vrt_backend_probe *probe)
 {
   CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUNDROBIN_MAGIC);
   vmod_selector_set_probe(ctx, &rr->selector, probe);
