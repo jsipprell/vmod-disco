@@ -13,7 +13,7 @@ libvmod_disco_la_LIBADD = @ADNS_LIBS@
 libvmod_disco_la_LDFLAGS = $(AM_LDFLAGS) -module -export-dynamic -avoid-version -shared
 libvmod_disco_la_SOURCES = vcc_disco_if.c vcc_disco_if.h vdir.c vpridir.c vpridir.h update.c \
 	bgthread.c event.c director.c \
-	disco.h
+	disco.h $(top_srcdir)/include/atomic.h
 
 vcc_disco_if.c vcc_disco_if.h: @VMODTOOL@ $(top_srcdir)/src/vmod_disco.vcc
 	@VMODTOOL@ -w ../docs/ -o vcc_disco_if $(top_srcdir)/src/vmod_disco.vcc

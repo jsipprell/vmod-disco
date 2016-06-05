@@ -116,12 +116,22 @@ AC_PATH_PROG([VARNISHD], [varnishd], [],
 
 AC_CHECK_SIZEOF([void*])
 AS_CASE($target_cpu,
-  [x86_64], [have_atomicptr=$GCC],
-  [i?86], [have_atomicptr=$GCC],
-  [have_atomicptr=])
+  [x86_64], [have_atomicptr=$GCC
+             atomic_arch=x86_64],
+  [i?86], [have_atomicptr=$GCC
+           atomic_arch=x86],
+  [have_atomicptr=
+   atomic_arch=])
+
+AS_CASE($atomic_arch,
+  [x86_64], [dnl
+    AC_DEFINE([ARCH_X86_64], [1], [Define to 1 if building for x86-64])],
+  [x86], [dnl
+    AC_DEFINE([ARCH_X86], [1], [Define to 1 if building for x86-32])],
+  [])
 
 AS_VAR_IF(have_atomicptr, ["yes"], [dnl
-AC_DEFINE([HAVE_ATOMICPTR], [1], [Define if the target architecture's pointers are atomic if aligned])], [])
+  AC_DEFINE([HAVE_ATOMICPTR], [1], [Define if the target architecture's pointers are atomic if aligned])], [])
 AC_CONFIG_FILES([
   Makefile
   src/Makefile
