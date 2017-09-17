@@ -1,6 +1,6 @@
 AC_PREREQ(2.59)
 AC_COPYRIGHT([Your mom])
-AC_INIT([libvmod_disco], [1.0.0])
+AC_INIT([libvmod_disco], [1.0.1])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build])
 m4_ifndef([VARNISH_VMOD_INCLUDES], AC_MSG_ERROR([Needs varnish m4 -- is MI-varnish41-devel installed?]))
