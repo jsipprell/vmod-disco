@@ -34,9 +34,56 @@ Example
     }
 
 $Object round_robin(PRIV_CALL, STRING, DURATION)
+
+Description
+  Creates a new round-robin load-balanced director (ala `directors.round_robin()` that
+  will be populated (and then automatically updated) from a DNS-SD query for
+  SRV records. The duration specifies how often the query will be resent by the
+  background dns thread in order to refresh the service list.
+Example
+  ::
+
+    sub vcl_init {
+      new vdir = disco.round_robin("myservice.service.consul", 20s);
+    }
+
 $Method VOID .use_tcp()
+
+Description
+  Use TCP rather than UDP (the default) where performing DNS-SD for this director's
+  service discovery. This may be necessary for large queries due to the inherent 512
+  byte DNS udp limit (and the fact that libadns does not currently support EDNS0).
+Example
+  ::
+
+    sub vcl_init {
+      new vdir = disco.round_robin("myservice.service.consul", 20s);
+      vdir.use_tcp();
+    }
+
 $Method VOID .set_probe(PROBE)
+
+Description
+  Set the health probe to use for *all* discovered backends for this director.
+  Default behavior is to not probe discovered backends.
+Example
+  ::
+
+    probe myprobe {
+      .url = "/foo";
+      .expected_response = 201;
+    }
+
+    sub vcl_init {
+      new vdir = disco.round_robin("myservice.service.consul", 20s);
+      vdir.set_probe(myprobe);
+    }
+
 $Method BACKEND .backend()
+
+Description
+  Returns a round-robin backend selector in exactly the same way that
+  vmod_directors' `backend()` methods do.
 
 $Object random(PRIV_CALL, STRING, DURATION)
 
@@ -87,6 +134,6 @@ Example
 $Method BACKEND .backend()
 
 Description
-  Selects a random selector in exactly the same way that
+  Returns a random backend selector in exactly the same way that
   vmod_directors' `backend()` methods do.
 

@@ -48,6 +48,10 @@ CONTENTS
 * BACKEND random.backend()
 * VOID random.set_probe(PROBE)
 * VOID random.use_tcp()
+* Object round_robin
+* BACKEND round_robin.backend()
+* VOID round_robin.set_probe(PROBE)
+* VOID round_robin.use_tcp()
 
 .. _func_dance:
 
@@ -70,6 +74,80 @@ Example
       disco.dance();
       set req.backend_hint = vdir.backend();
     }
+
+.. _obj_round_robin:
+
+Object round_robin
+==================
+
+
+Description
+  Creates a new round-robin load-balanced director (ala `directors.round_robin()` that
+  will be populated (and then automatically updated) from a DNS-SD query for
+  SRV records. The duration specifies how often the query will be resent by the
+  background dns thread in order to refresh the service list.
+Example
+  ::
+
+    sub vcl_init {
+      new vdir = disco.round_robin("myservice.service.consul", 20s);
+    }
+
+.. _func_round_robin.use_tcp:
+
+VOID round_robin.use_tcp()
+--------------------------
+
+Prototype
+	VOID round_robin.use_tcp()
+
+Description
+  Use TCP rather than UDP (the default) where performing DNS-SD for this director's
+  service discovery. This may be necessary for large queries due to the inherent 512
+  byte DNS udp limit (and the fact that libadns does not currently support EDNS0).
+Example
+  ::
+
+    sub vcl_init {
+      new vdir = disco.round_robin("myservice.service.consul", 20s);
+      vdir.use_tcp();
+    }
+
+.. _func_round_robin.set_probe:
+
+VOID round_robin.set_probe(PROBE)
+---------------------------------
+
+Prototype
+	VOID round_robin.set_probe(PROBE)
+
+Description
+  Set the health probe to use for *all* discovered backends for this director.
+  Default behavior is to not probe discovered backends.
+Example
+  ::
+
+    probe myprobe {
+      .url = "/foo";
+      .expected_response = 201;
+    }
+
+    sub vcl_init {
+      new vdir = disco.round_robin("myservice.service.consul", 20s);
+      vdir.set_probe(myprobe);
+    }
+
+.. _func_round_robin.backend:
+
+BACKEND round_robin.backend()
+-----------------------------
+
+Prototype
+	BACKEND round_robin.backend()
+
+Description
+  Returns a round-robin backend selector in exactly the same way that
+  vmod_directors' `backend()` methods do.
 
 .. _obj_random:
 
@@ -142,6 +220,6 @@ Prototype
 	BACKEND random.backend()
 
 Description
-  Selects a random selector in exactly the same way that
+  Returns a random backend selector in exactly the same way that
   vmod_directors' `backend()` methods do.
 
