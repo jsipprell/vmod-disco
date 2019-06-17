@@ -5,9 +5,7 @@
 #include <stdlib.h>
 
 #include "cache/cache.h"
-#include "cache/cache_director.h"
 
-#include "vrt.h"
 #include "vbm.h"
 
 #include "vpridir.h"
@@ -23,7 +21,7 @@ typedef struct vpri_director {
 } vpridir_t;
 
 
-void vpridir_new(struct vpridir **vpd, const char *name, const char *vcl_name,
+void vpridir_new(VRT_CTX, struct vpridir **vpd, const char *vcl_name,
                 vdi_healthy_f *healthy, vdi_resolve_f *resolve, void *priv)
 {
   struct vpridir *vp;
@@ -36,13 +34,11 @@ void vpridir_new(struct vpridir **vpd, const char *name, const char *vcl_name,
   VTAILQ_INIT(&vp->vdirs);
   AZ(pthread_rwlock_init(&vp->mtx, NULL));
 
-  ALLOC_OBJ(vp->dir, DIRECTOR_MAGIC);
+  ALLOC_OBJ(vp->methods, VDI_METHODS_MAGIC);
+  vp->methods->healthy = healthy;
+  vp->methods->resolve = resolve;
+  vp->dir = VRT_AddDirector(ctx, vp->methods, priv, "%s", vcl_name);
   AN(vp->dir);
-  vp->dir->name = name;
-  REPLACE(vp->dir->vcl_name, vcl_name);
-  vp->dir->priv = priv;
-  vp->dir->healthy = healthy;
-  vp->dir->resolve = resolve;
 }
 
 void vpridir_delete(struct vpridir **vpd)
@@ -67,10 +63,10 @@ void vpridir_delete(struct vpridir **vpd)
   }
 
   CHECK_OBJ_NOTNULL(vp->dir, DIRECTOR_MAGIC);
-  free(vp->dir->vcl_name);
-  FREE_OBJ(vp->dir);
+  VRT_DelDirector(&vp->dir);
   AZ(pthread_rwlock_unlock(&vp->mtx));
   AZ(pthread_rwlock_destroy(&vp->mtx));
+  FREE_OBJ(vp->methods);
   FREE_OBJ(vp);
 }
 
@@ -92,7 +88,7 @@ void vpridir_unlock(struct vpridir *vp)
   AZ(pthread_rwlock_unlock(&vp->mtx));
 }
 
-unsigned vpridir_add_backend(struct vpridir *vp, VCL_BACKEND be, unsigned short pri, double weight)
+unsigned vpridir_add_backend(VRT_CTX, struct vpridir *vp, VCL_BACKEND be, unsigned short pri, double weight)
 {
   unsigned u;
   vpridir_t *v;
@@ -110,7 +106,7 @@ unsigned vpridir_add_backend(struct vpridir *vp, VCL_BACKEND be, unsigned short 
       ALLOC_OBJ(nv, VPRI_MAGIC);
       AN(nv);
       nv->pri = pri;
-      vdir_new(&nv->vd, vp->dir->name, vp->dir->vcl_name, NULL, NULL, NULL);
+      vdir_new(ctx, &nv->vd, vp->dir->vcl_name, vp->dir->vcl_name, NULL, NULL, NULL);
       VTAILQ_INSERT_BEFORE(v, nv, list);
       v = nv;
       goto foundpri;
@@ -119,7 +115,7 @@ unsigned vpridir_add_backend(struct vpridir *vp, VCL_BACKEND be, unsigned short 
   ALLOC_OBJ(v, VPRI_MAGIC);
   AN(v);
   v->pri = pri;
-  vdir_new(&v->vd, vp->dir->name, vp->dir->vcl_name, NULL, NULL, NULL);
+  vdir_new(ctx, &v->vd, vp->dir->vcl_name, vp->dir->vcl_name, NULL, NULL, NULL);
   VTAILQ_INSERT_TAIL(&vp->vdirs, v, list);
 foundpri:
   CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
@@ -155,7 +151,7 @@ unsigned vpridir_remove_backend(struct vpridir *vp, VCL_BACKEND be)
   return (u);
 }
 
-VCL_BACKEND vpridir_pick_be(struct vpridir *vp, double w, const struct busyobj *bo)
+VCL_BACKEND vpridir_pick_be(VRT_CTX, struct vpridir *vp, double w)
 {
   VCL_BACKEND be = NULL;
   vpridir_t *v;
@@ -163,7 +159,7 @@ VCL_BACKEND vpridir_pick_be(struct vpridir *vp, double w, const struct busyobj *
   vpridir_rdlock(vp);
   VTAILQ_FOREACH(v, &vp->vdirs, list) {
     CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
-    be = vdir_pick_be(v->vd, w, bo);
+    be = vdir_pick_be(ctx, v->vd, w);
     if (be)
       goto bepicked;
   }
@@ -172,7 +168,7 @@ bepicked:
   return (be);
 }
 
-VCL_BACKEND vpridir_pick_ben(struct vpridir *vp, unsigned i, const struct busyobj *bo)
+VCL_BACKEND vpridir_pick_ben(VRT_CTX, struct vpridir *vp, unsigned i)
 {
   VCL_BACKEND be = NULL;
   vpridir_t *v;
@@ -180,7 +176,7 @@ VCL_BACKEND vpridir_pick_ben(struct vpridir *vp, unsigned i, const struct busyob
   vpridir_rdlock(vp);
   VTAILQ_FOREACH(v, &vp->vdirs, list) {
     CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
-    be = vdir_pick_ben(v->vd, i, bo);
+    be = vdir_pick_ben(ctx, v->vd, i);
     if (be)
       goto benpicked;
   }
@@ -189,8 +185,7 @@ benpicked:
   return (be);
 }
 
-unsigned vpridir_any_healthy(struct vpridir *vp, const struct busyobj *bo,
-    double *changed)
+unsigned vpridir_any_healthy(VRT_CTX, struct vpridir *vp, double *changed)
 {
   unsigned u = 0;
   vpridir_t *v;
@@ -198,7 +193,7 @@ unsigned vpridir_any_healthy(struct vpridir *vp, const struct busyobj *bo,
   vpridir_rdlock(vp);
   VTAILQ_FOREACH(v, &vp->vdirs, list) { 
     CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
-    u = vdir_any_healthy(v->vd, bo, changed);
+    u = vdir_any_healthy(ctx, v->vd, changed);
     if (u)
       goto anyhealthy;
   }

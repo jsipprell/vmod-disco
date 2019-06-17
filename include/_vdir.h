@@ -37,11 +37,12 @@ struct vdir {
   VCL_BACKEND       *backend;
   double          *weight;
   double          total_weight;
-  struct director       *dir;
+  struct vdi_methods *methods;
+  const struct director *dir;
   struct vbitmap        *vbm;
 };
 
-void vdir_new(struct vdir **vdp, const char *name, const char *vcl_name,
+void vdir_new(VRT_CTX, struct vdir **vdp, const char *name, const char *vcl_name,
     vdi_healthy_f *healthy, vdi_resolve_f *resolve, void *priv);
 void vdir_delete(struct vdir **vdp);
 void vdir_rdlock(struct vdir *vd);
@@ -49,7 +50,6 @@ void vdir_wrlock(struct vdir *vd);
 void vdir_unlock(struct vdir *vd);
 unsigned vdir_add_backend(struct vdir *, VCL_BACKEND be, double weight);
 unsigned vdir_remove_backend(struct vdir *, VCL_BACKEND be);
-unsigned vdir_any_healthy(struct vdir *, const struct busyobj *,
-    double *changed);
-VCL_BACKEND vdir_pick_be(struct vdir *, double w, const struct busyobj *);
-VCL_BACKEND vdir_pick_ben(struct vdir *, unsigned i, const struct busyobj *);
+unsigned vdir_any_healthy(VRT_CTX, struct vdir *, double *changed);
+VCL_BACKEND vdir_pick_be(VRT_CTX, struct vdir *, double w);
+VCL_BACKEND vdir_pick_ben(VRT_CTX, struct vdir *, unsigned i);

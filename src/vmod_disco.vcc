@@ -16,7 +16,7 @@ configuration and provisioning systems that use DNS-SD (such as Consul.io).
 This allows Varnish to operate as a front-end for such dynamically scaled
 systems.
 
-$Event vmod_event
+$Event disco_event
 $Function VOID dance(PRIV_CALL)
 
 Description

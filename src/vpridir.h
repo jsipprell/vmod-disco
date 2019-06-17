@@ -4,21 +4,20 @@ struct vpridir {
   unsigned magic;
 #define VPRIDIR_MAGIC     0x99f4b276
   pthread_rwlock_t mtx;
-  struct director *dir;
-
+  VCL_BACKEND dir;
+  struct vdi_methods *methods;
   VTAILQ_HEAD(,vpri_director) vdirs;
 };
 
-void vpridir_new(struct vpridir **vdp, const char *name, const char *vcl_name,
+void vpridir_new(VRT_CTX, struct vpridir **vdp, const char *vcl_name,
     vdi_healthy_f *healthy, vdi_resolve_f *resolve, void *priv);
 void vpridir_delete(struct vpridir **vdp);
 void vpridir_rdlock(struct vpridir *vd);
 void vpridir_wrlock(struct vpridir *vd);
 void vpridir_unlock(struct vpridir *vd);
 
-unsigned vpridir_add_backend(struct vpridir *, VCL_BACKEND be, unsigned short pri, double weight);
+unsigned vpridir_add_backend(VRT_CTX, struct vpridir *, VCL_BACKEND be, unsigned short pri, double weight);
 unsigned vpridir_remove_backend(struct vpridir *, VCL_BACKEND be);
-unsigned vpridir_any_healthy(struct vpridir *, const struct busyobj *,
-    double *changed);
-VCL_BACKEND vpridir_pick_be(struct vpridir *, double w, const struct busyobj *);
-VCL_BACKEND vpridir_pick_ben(struct vpridir *, unsigned i, const struct busyobj *);
+unsigned vpridir_any_healthy(VRT_CTX, struct vpridir *, double *changed);
+VCL_BACKEND vpridir_pick_be(VRT_CTX, struct vpridir *, double w);
+VCL_BACKEND vpridir_pick_ben(VRT_CTX, struct vpridir *, unsigned i);

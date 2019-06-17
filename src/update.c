@@ -5,11 +5,10 @@
 #include <math.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
+#include <unistd.h>
 
-#include "vcl.h"
-#include "vrt.h"
 #include "cache/cache.h"
-#include "cache/cache_director.h"
 
 #include "vsa.h"
 #include "vtim.h"

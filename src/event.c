@@ -4,11 +4,9 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "vcl.h"
-#include "vrt.h"
 #include "cache/cache.h"
-#include "cache/cache_director.h"
 
 #include "vtim.h"
 #include "vpridir.h"
@@ -19,6 +17,7 @@ static pthread_mutex_t global_mtx = PTHREAD_MUTEX_INITIALIZER;
 static int global_load_count = 0;
 static struct vmod_disco *default_mod = NULL;
 static struct vmod_disco *warmed_mod = NULL;
+int disco_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev);
 
 static void free_func(void *p)
 {
@@ -51,8 +50,8 @@ void current_vmod(struct vmod_priv *priv)
   }
 }
 
-int __match_proto__(vmod_event_f)
-vmod_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
+int v_matchproto_(vmod_event_f)
+disco_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
 {
   struct vmod_disco *vd;
 
@@ -126,12 +125,14 @@ vmod_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
       default_mod = warmed_mod;
     AZ(pthread_mutex_unlock(&global_mtx));
     break;
+/*
   case VCL_EVENT_USE:
     AZ(pthread_mutex_lock(&global_mtx));
     CAST_OBJ_NOTNULL(vd, priv->priv, VMOD_DISCO_MAGIC);
     if (vd != default_mod)
       default_mod = vd;
     AZ(pthread_mutex_unlock(&global_mtx));
+*/
   default:
     break;
   }

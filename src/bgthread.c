@@ -6,13 +6,12 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <string.h>
 
-#include "vcl.h"
 #include "cache/cache.h"
-#include "cache/cache_director.h"
 
-#include "vrt.h"
 #include "vtim.h"
+#include "vsb.h"
 #include "vpridir.h"
 #include "vcc_disco_if.h"
 #include "disco.h"
@@ -294,7 +293,7 @@ nextquery:
   return now + interval;
 }
 
-static void * __match_proto__(bgthread_t)
+static void * v_matchproto_(bgthread_t)
 disco_thread(struct worker *wrk, void *priv)
 {
   struct vmod_disco_bgthread *bg;
