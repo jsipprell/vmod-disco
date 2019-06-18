@@ -16,7 +16,7 @@ void vpridir_rdlock(struct vpridir *vd);
 void vpridir_wrlock(struct vpridir *vd);
 void vpridir_unlock(struct vpridir *vd);
 
-unsigned vpridir_add_backend(VRT_CTX, struct vpridir *, VCL_BACKEND be, unsigned short pri, double weight);
+unsigned vpridir_add_backend(struct vpridir *, VCL_BACKEND be, unsigned short pri, double weight);
 unsigned vpridir_remove_backend(struct vpridir *, VCL_BACKEND be);
 unsigned vpridir_any_healthy(VRT_CTX, struct vpridir *, double *changed);
 VCL_BACKEND vpridir_pick_be(VRT_CTX, struct vpridir *, double w);

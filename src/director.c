@@ -76,12 +76,12 @@ static void expand_discovered_backends(disco_t *d, unsigned sz)
   d->l_backends = sz;
 }
 
-static void update_vdir_add_backend(VRT_CTX, struct vpridir *vdir, unsigned pri, unsigned weight, const struct director *be)
+static void update_vdir_add_backend(struct vpridir *vdir, unsigned pri, unsigned weight, const struct director *be)
 {
   CHECK_OBJ_NOTNULL(vdir, VPRIDIR_MAGIC);
 
   assert(weight <= 0xffff);
-  vpridir_add_backend(ctx, vdir, be, pri, 1.0 + scalbn(weight, -16));
+  vpridir_add_backend(vdir, be, pri, 1.0 + scalbn(weight, -16));
 }
 
 static void compact_backends(disco_t *d)
@@ -230,7 +230,7 @@ static void update_backends(VRT_CTX, struct vmod_disco *vd, disco_t *d, short re
       }
       d->backends[i] = VRT_new_backend(ctx, &be);
       AN(d->backends[i]);
-      update_vdir_add_backend(ctx, d->vd, d->srv[i].priority, d->srv[i].weight, d->backends[i]);
+      update_vdir_add_backend(d->vd, d->srv[i].priority, d->srv[i].weight, d->backends[i]);
     }
   }
   assert(d->n_backends >= d->n_srv);
