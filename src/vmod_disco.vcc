@@ -1,10 +1,11 @@
-$Module disco 3 Varnish 4.1 Auto-Discovery Backends
+$ABI strict
+$Module disco 3 "Varnish 6.2 Auto-Discovery Backends"
 
 DESCRIPTION
 ===========
 
 This is a custom load-balancing director and origin discovery service module
-for Varnish 4.1.  It utilizes DNS-SD (unicast service discovery using SRV
+for Varnish 6.2.  It utilizes DNS-SD (unicast service discovery using SRV
 records) to look for available backends at regular configurable intervals and
 turns these into dynamic backends. This vmod requires libadns (linked at build
 time) to handle the DNS communication -- all in a background thread. When
