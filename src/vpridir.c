@@ -35,6 +35,7 @@ void vpridir_new(VRT_CTX, struct vpridir **vpd, const char *vcl_name,
   AZ(pthread_rwlock_init(&vp->mtx, NULL));
 
   ALLOC_OBJ(vp->methods, VDI_METHODS_MAGIC);
+  vp->methods->type = "disco_pri";
   vp->methods->healthy = healthy;
   vp->methods->resolve = resolve;
   vp->dir = VRT_AddDirector(ctx, vp->methods, priv, "%s", vcl_name);
@@ -106,7 +107,7 @@ unsigned vpridir_add_backend(VRT_CTX, struct vpridir *vp, VCL_BACKEND be, unsign
       ALLOC_OBJ(nv, VPRI_MAGIC);
       AN(nv);
       nv->pri = pri;
-      vdir_new(ctx, &nv->vd, vp->dir->vcl_name, vp->dir->vcl_name, NULL, NULL, NULL);
+      vdir_new(ctx, &nv->vd, vp->dir->vcl_name, NULL, NULL, NULL);
       VTAILQ_INSERT_BEFORE(v, nv, list);
       v = nv;
       goto foundpri;
@@ -115,7 +116,7 @@ unsigned vpridir_add_backend(VRT_CTX, struct vpridir *vp, VCL_BACKEND be, unsign
   ALLOC_OBJ(v, VPRI_MAGIC);
   AN(v);
   v->pri = pri;
-  vdir_new(ctx, &v->vd, vp->dir->vcl_name, vp->dir->vcl_name, NULL, NULL, NULL);
+  vdir_new(ctx, &v->vd, vp->dir->vcl_name, NULL, NULL, NULL);
   VTAILQ_INSERT_TAIL(&vp->vdirs, v, list);
 foundpri:
   CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);

@@ -17,7 +17,8 @@ static pthread_mutex_t global_mtx = PTHREAD_MUTEX_INITIALIZER;
 static int global_load_count = 0;
 static struct vmod_disco *default_mod = NULL;
 static struct vmod_disco *warmed_mod = NULL;
-int disco_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev);
+
+struct VSC_lck *lck_disco = NULL;
 
 static void free_func(void *p)
 {
@@ -51,7 +52,7 @@ void current_vmod(struct vmod_priv *priv)
 }
 
 int v_matchproto_(vmod_event_f)
-disco_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
+vmod_disco_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
 {
   struct vmod_disco *vd;
 
@@ -59,6 +60,12 @@ disco_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
 
   switch(ev) {
   case VCL_EVENT_LOAD:
+    if (lck_disco == NULL) {
+      lck_disco = Lck_CreateClass(NULL, "mii");
+    }
+
+    VSL(SLT_Debug, 0, "%s: VCL_EVENT_LOAD", VCL_Name(ctx->vcl));
+
     AZ(pthread_mutex_lock(&global_mtx));
     if (global_load_count == 0) {
       ALLOC_OBJ(vd, VMOD_DISCO_MAGIC);
@@ -119,6 +126,7 @@ disco_event(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e ev)
     AZ(pthread_mutex_lock(&global_mtx));
     CAST_OBJ_NOTNULL(vd, priv->priv, VMOD_DISCO_MAGIC);
     CHECK_OBJ_NOTNULL(vd->wrk, VMOD_DISCO_BGTHREAD_MAGIC);
+    AN(vd->wrk);
     vmod_disco_bgthread_delete(&vd->wrk);
     AZ(vd->wrk);
     if (vd == default_mod && warmed_mod != NULL)

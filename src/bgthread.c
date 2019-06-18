@@ -41,6 +41,8 @@ static void disco_thread_dnslog(adns_state, void *priv, const char *fmt, va_list
     (bg)->dns = NULL; \
   } while(0)
 
+extern struct VSC_lck *lck_disco;
+
 static void expand_srv(disco_t *d, unsigned sz)
 {
   CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
@@ -226,6 +228,7 @@ static double disco_thread_run(struct worker *wrk,
   CAST_OBJ_NOTNULL(mod, bg->priv, VMOD_DISCO_MAGIC);
   CHECK_OBJ_NOTNULL(bg->ws, WS_MAGIC);
 
+  VSL(SLT_Debug, 0, "disco_thread_run");
   Lck_AssertHeld(&bg->mtx);
   (void)wrk;
   interval = bg->interval;
@@ -283,7 +286,7 @@ nextquery:
     if (interval > 5e-3)
       interval = 5e-3;
 
-    VSL(SLT_Debug, 0, "disco: DNS-SD %s: Q SRV %s", d->name, name);
+    VSL(SLT_Debug, 0, "disco: DNS-SD %s: Q SRV %s (now=%f)", d->name, name, now);
     WS_Release(bg->ws, 0);
   }
   update_rwlock_unlock(mod->mtx, NULL);
@@ -308,19 +311,27 @@ disco_thread(struct worker *wrk, void *priv)
   Lck_Lock(&bg->mtx);
   VSL(SLT_Debug, 0, "disco: bgthread startup");
   while (!shutdown) {
-#ifdef HAVE_CLOCK_GETTIME
-    d = disco_thread_run(wrk, bg, VTIM_mono());
-#else
+// #ifdef HAVE_CLOCK_GETTIME
+//    d = disco_thread_run(wrk, bg, VTIM_mono());
+//#else
     d = disco_thread_run(wrk, bg, VTIM_real());
-#endif
+//#endif
     Lck_AssertHeld(&bg->mtx);
     if (!bg->shutdown && bg->dns) {
       Lck_Unlock(&bg->mtx);
       adns_processany(bg->dns);
       Lck_Lock(&bg->mtx);
     }
+    if (d > 0 && d <= 1e9) {
+      d = (1e9)+1;
+    }
     if (gen == bg->gen && !bg->shutdown)
+    {
+      VSL(SLT_Debug, 0, "disco: bgthread cond wait (timeout @ %f)", d);
       (void)Lck_CondWait(&bg->cond, &bg->mtx, d);
+      //(void)Lck_CondWait(&bg->cond, &bg->mtx, VTIM_real() - 1.0);
+      VSL(SLT_Debug, 0, "disco: bgthread cond wait completed");
+    }
     Lck_AssertHeld(&bg->mtx);
     gen = bg->gen;
     shutdown = bg->shutdown;
@@ -349,14 +360,17 @@ void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, un
   s  = (unsigned char*)wrk->ws + PRNDUP(sizeof(struct ws));
   WS_Init(wrk->ws, "mii", s, sizeof(wrk->__scratch) - (s - &wrk->__scratch[0]));
 
-  Lck_New(&wrk->mtx, lck_vcl);
-#ifdef HAVE_CLOCK_GETTIME
-  AZ(pthread_condattr_init(&wrk->conda));
-  AZ(pthread_condattr_setclock(&wrk->conda, CLOCK_MONOTONIC));
-  AZ(pthread_cond_init(&wrk->cond, &wrk->conda));
-#else
+  if (lck_disco == NULL) {
+    lck_disco = Lck_CreateClass(NULL, "mii");
+  }
+  Lck_New(&wrk->mtx, lck_disco);
+// #ifdef HAVE_CLOCK_GETTIME
+//  AZ(pthread_condattr_init(&wrk->conda));
+//  AZ(pthread_condattr_setclock(&wrk->conda, CLOCK_MONOTONIC));
+//  AZ(pthread_cond_init(&wrk->cond, &wrk->conda));
+//#else
   AZ(pthread_cond_init(&wrk->cond, NULL));
-#endif
+//#endif
   wrk->gen = 1;
   wrk->interval = interval;
   wrk->priv = priv;

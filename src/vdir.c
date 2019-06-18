@@ -54,12 +54,11 @@ vdir_expand(struct vdir *vd, unsigned n)
 }
 
 void
-vdir_new(VRT_CTX, struct vdir **vdp, const char *name, const char *vcl_name,
+vdir_new(VRT_CTX, struct vdir **vdp, const char *vcl_name,
     vdi_healthy_f *healthy, vdi_resolve_f *resolve, void *priv)
 {
   struct vdir *vd;
 
-  AN(name);
   AN(vcl_name);
   AN(vdp);
   AZ(*vdp);
@@ -69,10 +68,10 @@ vdir_new(VRT_CTX, struct vdir **vdp, const char *name, const char *vcl_name,
   AZ(pthread_rwlock_init(&vd->mtx, NULL));
 
   ALLOC_OBJ(vd->methods, VDI_METHODS_MAGIC);
+  vd->methods->type = "disco";
   vd->methods->healthy = healthy;
   vd->methods->resolve = resolve;
-  vd->dir = VRT_AddDirector(ctx, vd->methods, priv, "%s", name);
-  // vcl_name??
+  vd->dir = VRT_AddDirector(ctx, vd->methods, priv, "%s", vcl_name);
   vd->vbm = vbit_new(8);
   AN(vd->vbm);
 }
