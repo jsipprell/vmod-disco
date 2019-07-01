@@ -177,10 +177,10 @@ vdir_any_healthy(VRT_CTX, struct vdir *vd, double *changed)
     h = VRT_Healthy(ctx, be, &c);
     if (changed != NULL && c > *changed)
       *changed = c;
-    if (!h) {
+    if (h) {
+      retval++;
       break;
     }
-    retval++;
   }
   vdir_unlock(vd);
   return (retval);
