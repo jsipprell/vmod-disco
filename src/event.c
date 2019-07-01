@@ -46,7 +46,7 @@ static int event_load(VRT_CTX, struct vmod_priv *priv) {
   if (global_load_count == 0) {
     AZ(lck_disco);
     AZ(lck_disco_sg);
-    lck_disco = Lck_CreateClass(&lck_disco_sg, "mii");
+    lck_disco = Lck_CreateClass(&lck_disco_sg, "disco");
   }
   global_load_count++;
   return (0);
