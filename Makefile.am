@@ -1,9 +1,9 @@
-ACLOCAL_AMFLAGS = -I m4 -I ${LIBVARNISHAPI_DATAROOTDIR}/aclocal
+ACLOCAL_AMFLAGS = -I m4 -I ${VARNISHAPI_DATAROOTDIR}/aclocal
 
 SUBDIRS = src
 
 DISTCHECK_CONFIGURE_FLAGS = \
-	VMOD_DIR='$${libdir}/varnish/vmods'
+	VMOD_DIR=@VMOD_DIR@
 
 EXTRA_DIST = README.rst docs/*.rst include/vdir.h include/_vdir.h include/atomic.h LICENSE
 

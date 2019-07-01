@@ -3,7 +3,7 @@ AC_COPYRIGHT([Your mom])
 AC_INIT([libvmod_disco], [1.1.0])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build])
-m4_ifndef([VARNISH_VMOD_INCLUDES], AC_MSG_ERROR([Needs varnish m4 -- is MI-varnish41-devel installed?]))
+m4_ifndef([VARNISH_VMODS], AC_MSG_ERROR([Needs varnish m4 -- is MI-varnish6-devel installed?]))
 AM_CONFIG_HEADER(include/config.h)
 
 AC_CANONICAL_SYSTEM
@@ -66,11 +66,8 @@ AC_DEFUN([PKG_CHECK_VAR],
   ])# PKG_CHECK_VAR
 ])
 
-PKG_CHECK_MODULES([libvarnishapi], [varnishapi])
-PKG_CHECK_VAR([LIBVARNISHAPI_DATAROOTDIR], [varnishapi], [datarootdir])
-PKG_CHECK_VAR([LIBVARNISHAPI_BINDIR], [varnishapi], [bindir])
-PKG_CHECK_VAR([LIBVARNISHAPI_SBINDIR], [varnishapi], [sbindir])
-AC_SUBST([LIBVARNISHAPI_DATAROOTDIR])
+VARNISH_VMOD_DIR
+VARNISH_VMODS([disco])
 
 save_CPPFLAGS="$CPPFLAGS"
 save_LIBS="$LIBS"
@@ -104,15 +101,6 @@ AC_CHECK_FUNCS([clock_gettime])
 AC_SUBST(RT_LIBS)
 
 AC_ARG_VAR([ADDL_DEFS], [Additional or custom preprocessor defines])
-
-VARNISH_VMOD_INCLUDES
-VARNISH_VMOD_DIR
-VARNISH_VMODTOOL
-
-AC_PATH_PROG([VARNISHTEST], [varnishtest], [],
-  [$LIBVARNISHAPI_BINDIR:$LIBVARNISHAPI_SBINDIR:$PATH])
-AC_PATH_PROG([VARNISHD], [varnishd], [],
-  [$LIBVARNISHAPI_SBINDIR:$LIBVARNISHAPI_BINDIR:$PATH])
 
 AC_CHECK_SIZEOF([void*])
 AS_CASE($target_cpu,
