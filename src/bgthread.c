@@ -327,10 +327,7 @@ disco_thread(struct worker *wrk, void *priv)
     }
     if (gen == bg->gen && !bg->shutdown)
     {
-      VSL(SLT_Debug, 0, "disco: bgthread cond wait (timeout @ %f)", d);
       (void)Lck_CondWait(&bg->cond, &bg->mtx, d);
-      //(void)Lck_CondWait(&bg->cond, &bg->mtx, VTIM_real() - 1.0);
-      VSL(SLT_Debug, 0, "disco: bgthread cond wait completed");
     }
     Lck_AssertHeld(&bg->mtx);
     gen = bg->gen;
@@ -360,9 +357,7 @@ void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, un
   s  = (unsigned char*)wrk->ws + PRNDUP(sizeof(struct ws));
   WS_Init(wrk->ws, "mii", s, sizeof(wrk->__scratch) - (s - &wrk->__scratch[0]));
 
-  if (lck_disco == NULL) {
-    lck_disco = Lck_CreateClass(NULL, "mii");
-  }
+  AN(lck_disco);
   Lck_New(&wrk->mtx, lck_disco);
 // #ifdef HAVE_CLOCK_GETTIME
 //  AZ(pthread_condattr_init(&wrk->conda));

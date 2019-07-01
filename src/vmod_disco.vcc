@@ -18,7 +18,7 @@ This allows Varnish to operate as a front-end for such dynamically scaled
 systems.
 
 $Event disco_event
-$Function VOID dance(PRIV_CALL)
+$Function VOID dance(PRIV_VCL)
 
 Description
   Integrate any newly discovered backends that the background dns discovery
@@ -34,7 +34,7 @@ Example
       set req.backend_hint = vdir.backend();
     }
 
-$Object round_robin(PRIV_CALL, STRING, DURATION)
+$Object round_robin(PRIV_VCL, STRING, DURATION)
 
 Description
   Creates a new round-robin load-balanced director (ala `directors.round_robin()` that
@@ -86,7 +86,7 @@ Description
   Returns a round-robin backend selector in exactly the same way that
   vmod_directors' `backend()` methods do.
 
-$Object random(PRIV_CALL, STRING, DURATION)
+$Object random(PRIV_VCL, STRING, DURATION)
 
 Description
   Creates a new random load-balanced director (ala `directors.random()` that

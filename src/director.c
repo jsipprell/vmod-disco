@@ -263,7 +263,6 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
 
   CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
   AN(priv);
-  current_vmod(priv);
   CAST_OBJ_NOTNULL(vd, priv->priv, VMOD_DISCO_MAGIC);
 
   if (ctx->method == VCL_MET_INIT || ctx->method == VCL_MET_FINI) {
@@ -362,7 +361,6 @@ vmod_round_robin__init(VRT_CTX, struct vmod_disco_round_robin **p, const char *v
   CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
   AN(priv);
   AN(p);
-  current_vmod(priv);
 
   ALLOC_OBJ(*p, VMOD_DISCO_ROUNDROBIN_MAGIC);
   AN(*p);
@@ -378,7 +376,6 @@ vmod_random__init(VRT_CTX, struct vmod_disco_random **p, const char *vcl_name,
   CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
   AN(priv);
   AN(p);
-  current_vmod(priv);
 
   ALLOC_OBJ(*p, VMOD_DISCO_RANDOM_MAGIC);
   AN(*p);
