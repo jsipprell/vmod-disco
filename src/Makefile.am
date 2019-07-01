@@ -5,7 +5,7 @@ DEFS = @DEFS@ @ADDL_DEFS@
 
 DEFAULT_INCLUDES = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
-vmoddir = @VMOD_DIR@
+vmoddir = $(VARNISHAPI_VMODDIR)
 vmod_LTLIBRARIES = libvmod_disco.la
 notrans_man_MANS = vmod_disco.3
 
