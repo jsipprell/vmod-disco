@@ -276,7 +276,7 @@ nextquery:
     u = WS_Reserve(bg->ws, 0);
     l = strlen(d->name);
     assert(u > l+2);
-    name = strncpy(bg->ws->f, d->name, u-1);
+    name = strncpy(WS_Front(bg->ws), d->name, u-1);
     *(name + l) = '.';
     *(name + l + 1) = '\0';
     if (!bg->dns) ADNS_INIT(bg);

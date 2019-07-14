@@ -124,7 +124,7 @@ static const char *mkvclname(struct ws *ws, struct vmod_disco *vd,
   l = strlen(prefix) + strlen(suffix);
   u = WS_Reserve(ws, 0);
   assert(u > l+8);
-  name = ws->f;
+  name = WS_Front(ws);
   strcpy(name, prefix);
   cp = name + strlen(prefix);
   *cp++ = '_';
@@ -188,7 +188,7 @@ static void update_backends(VRT_CTX, struct vmod_disco *vd, disco_t *d, short re
     WS_Reset(ctx->ws, snap);
     u = WS_Reserve(ctx->ws, 0);
     assert(u > vsa_suckaddr_len*2);
-    ip = VSA_Build(ctx->ws->f, &d->srv[i].addr.addr.sa, d->srv[i].addr.len);
+    ip = VSA_Build(WS_Front(ctx->ws), &d->srv[i].addr.addr.sa, d->srv[i].addr.len);
     AN(ip);
     assert(VSA_Sane(ip));
     WS_Release(ctx->ws, PRNDUP(vsa_suckaddr_len));
@@ -326,7 +326,7 @@ static void vmod_selector_init(VRT_CTX, struct vmod_disco_selector *p, const cha
   AN(d);
   u = WS_Reserve(p->ws, strlen(name)+1);
   AN(u);
-  b = p->ws->f;
+  b = WS_Front(p->ws);
   e = b + (u-1);
   strcpy(b, name);
   assert(e > b);
