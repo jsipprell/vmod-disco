@@ -6,14 +6,13 @@
 
 .. role:: ref(emphasis)
 
-.. _vmod_disco(3):
 
 ==========
-vmod_disco
+VMOD disco
 ==========
 
 -----------------------------------
-Varnish 4.1 Auto-Discovery Backends
+Varnish 6.2 Auto-Discovery Backends
 -----------------------------------
 
 :Manual section: 3
@@ -21,14 +20,33 @@ Varnish 4.1 Auto-Discovery Backends
 SYNOPSIS
 ========
 
-import disco [from "path"] ;
+.. parsed-literal::
 
-
+  import disco [from "path"]
+  
+  VOID dance()
+  
+  new xround_robin = disco.round_robin(STRING, DURATION)
+  
+      VOID xround_robin.use_tcp()
+   
+      VOID xround_robin.set_probe(PROBE)
+   
+      BACKEND xround_robin.backend()
+   
+  new xrandom = disco.random(STRING, DURATION)
+  
+      VOID xrandom.use_tcp()
+   
+      VOID xrandom.set_probe(PROBE)
+   
+      BACKEND xrandom.backend()
+   
 DESCRIPTION
 ===========
 
 This is a custom load-balancing director and origin discovery service module
-for Varnish 4.1.  It utilizes DNS-SD (unicast service discovery using SRV
+for Varnish 6.2.  It utilizes DNS-SD (unicast service discovery using SRV
 records) to look for available backends at regular configurable intervals and
 turns these into dynamic backends. This vmod requires libadns (linked at build
 time) to handle the DNS communication -- all in a background thread. When
@@ -40,26 +58,10 @@ configuration and provisioning systems that use DNS-SD (such as Consul.io).
 This allows Varnish to operate as a front-end for such dynamically scaled
 systems.
 
-CONTENTS
-========
+.. _vmod_disco.dance:
 
-* VOID dance(PRIV_CALL)
-* Object random
-* BACKEND random.backend()
-* VOID random.set_probe(PROBE)
-* VOID random.use_tcp()
-* Object round_robin
-* BACKEND round_robin.backend()
-* VOID round_robin.set_probe(PROBE)
-* VOID round_robin.use_tcp()
-
-.. _func_dance:
-
-VOID dance(PRIV_CALL)
----------------------
-
-Prototype
-	VOID dance(PRIV_CALL)
+VOID dance()
+------------
 
 Description
   Integrate any newly discovered backends that the background dns discovery
@@ -75,11 +77,10 @@ Example
       set req.backend_hint = vdir.backend();
     }
 
-.. _obj_round_robin:
+.. _vmod_disco.round_robin:
 
-Object round_robin
-==================
-
+new xround_robin = disco.round_robin(STRING, DURATION)
+------------------------------------------------------
 
 Description
   Creates a new round-robin load-balanced director (ala `directors.round_robin()` that
@@ -93,13 +94,10 @@ Example
       new vdir = disco.round_robin("myservice.service.consul", 20s);
     }
 
-.. _func_round_robin.use_tcp:
+.. _vmod_disco.round_robin.use_tcp:
 
-VOID round_robin.use_tcp()
---------------------------
-
-Prototype
-	VOID round_robin.use_tcp()
+VOID xround_robin.use_tcp()
+---------------------------
 
 Description
   Use TCP rather than UDP (the default) where performing DNS-SD for this director's
@@ -113,13 +111,10 @@ Example
       vdir.use_tcp();
     }
 
-.. _func_round_robin.set_probe:
+.. _vmod_disco.round_robin.set_probe:
 
-VOID round_robin.set_probe(PROBE)
----------------------------------
-
-Prototype
-	VOID round_robin.set_probe(PROBE)
+VOID xround_robin.set_probe(PROBE)
+----------------------------------
 
 Description
   Set the health probe to use for *all* discovered backends for this director.
@@ -137,23 +132,19 @@ Example
       vdir.set_probe(myprobe);
     }
 
-.. _func_round_robin.backend:
+.. _vmod_disco.round_robin.backend:
 
-BACKEND round_robin.backend()
------------------------------
-
-Prototype
-	BACKEND round_robin.backend()
+BACKEND xround_robin.backend()
+------------------------------
 
 Description
   Returns a round-robin backend selector in exactly the same way that
   vmod_directors' `backend()` methods do.
 
-.. _obj_random:
+.. _vmod_disco.random:
 
-Object random
-=============
-
+new xrandom = disco.random(STRING, DURATION)
+--------------------------------------------
 
 Description
   Creates a new random load-balanced director (ala `directors.random()` that
@@ -167,13 +158,10 @@ Example
       new vdir = disco.random("myservice.service.consul", 20s);
     }
 
-.. _func_random.use_tcp:
+.. _vmod_disco.random.use_tcp:
 
-VOID random.use_tcp()
----------------------
-
-Prototype
-	VOID random.use_tcp()
+VOID xrandom.use_tcp()
+----------------------
 
 Description
   Use TCP rather than UDP (the default) where performing DNS-SD for this director's
@@ -187,13 +175,10 @@ Example
       vdir.use_tcp();
     }
 
-.. _func_random.set_probe:
+.. _vmod_disco.random.set_probe:
 
-VOID random.set_probe(PROBE)
-----------------------------
-
-Prototype
-	VOID random.set_probe(PROBE)
+VOID xrandom.set_probe(PROBE)
+-----------------------------
 
 Description
   Set the health probe to use for *all* discovered backends for this director.
@@ -211,15 +196,11 @@ Example
       vdir.set_probe(myprobe);
     }
 
-.. _func_random.backend:
+.. _vmod_disco.random.backend:
 
-BACKEND random.backend()
-------------------------
-
-Prototype
-	BACKEND random.backend()
+BACKEND xrandom.backend()
+-------------------------
 
 Description
   Returns a random backend selector in exactly the same way that
   vmod_directors' `backend()` methods do.
-
