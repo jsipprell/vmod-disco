@@ -66,7 +66,7 @@ vdir_new(struct vdir **vdp, const char *vcl_name)
   *vdp = vd;
   AZ(pthread_rwlock_init(&vd->mtx, NULL));
 
-  vd->vbm = vbit_new(8);
+  vd->vbm = vbit_new(SLT__MAX);
   AN(vd->vbm);
 }
 
@@ -202,9 +202,9 @@ vdir_update_health(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, double *total_weig
     if (h) {
       tw += vd->weight[u];
       count++;
-      if (vbit_test(blacklist, u))
+      if (u < SLT__MAX && vbit_test(blacklist, u))
         vbit_clr(blacklist, u);
-    } else if (!vbit_test(blacklist, u))
+    } else if (u < SLT__MAX && !vbit_test(blacklist, u))
       vbit_set(blacklist, u);
   }
 
@@ -242,7 +242,7 @@ vdir_pick_ben(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, unsigned i)
   VCL_BACKEND be = NULL;
 
   CHECK_OBJ_NOTNULL(dir, DIRECTOR_MAGIC);
-  vdir_wrlock(vd);
+  vdir_rdlock(vd);
   c = vdir_update_health(ctx, vd, dir, NULL);
 
   if (c) {
@@ -267,7 +267,7 @@ vdir_pick_be(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, double w)
   VCL_BACKEND be = NULL;
 
   CHECK_OBJ_NOTNULL(dir, DIRECTOR_MAGIC);
-  vdir_wrlock(vd);
+  vdir_rdlock(vd);
   vdir_update_health(ctx, vd, dir, &tw);
 
   if (tw > 0.0) {
