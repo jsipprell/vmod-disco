@@ -160,7 +160,7 @@ VCL_BACKEND vpridir_pick_be(VRT_CTX, struct vpridir *vp, double w)
   vpridir_rdlock(vp);
   VTAILQ_FOREACH(v, &vp->vdirs, list) {
     CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
-    be = vdir_pick_be(ctx, v->vd, w);
+    be = vdir_pick_be(ctx, v->vd, vp->dir, w);
     if (be)
       goto bepicked;
   }
@@ -177,7 +177,7 @@ VCL_BACKEND vpridir_pick_ben(VRT_CTX, struct vpridir *vp, unsigned i)
   vpridir_rdlock(vp);
   VTAILQ_FOREACH(v, &vp->vdirs, list) {
     CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
-    be = vdir_pick_ben(ctx, v->vd, i);
+    be = vdir_pick_ben(ctx, v->vd, vp->dir, i);
     if (be)
       goto benpicked;
   }
@@ -186,7 +186,7 @@ benpicked:
   return (be);
 }
 
-unsigned vpridir_any_healthy(VRT_CTX, struct vpridir *vp, double *changed)
+unsigned vpridir_any_healthy(VRT_CTX, struct vpridir *vp, VCL_TIME *changed)
 {
   unsigned u = 0;
   vpridir_t *v;

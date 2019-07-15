@@ -34,7 +34,7 @@ struct vmod_disco_round_robin {
 };
 
 static unsigned v_matchproto_(vdi_healthy_f)
-vd_healthy(VRT_CTX, VCL_BACKEND d, double *changed)
+vd_healthy(VRT_CTX, VCL_BACKEND d, VCL_TIME *changed)
 {
   disco_t *dd;
   CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);

@@ -156,34 +156,63 @@ vdir_remove_backend(struct vdir *vd, VCL_BACKEND be)
 }
 
 unsigned
-vdir_any_healthy(VRT_CTX, struct vdir *vd, double *changed)
+vdir_any_healthy(VRT_CTX, struct vdir *vd, VCL_TIME *changed)
 {
   unsigned retval = 0;
   VCL_BACKEND be;
   unsigned u;
-  double c;
+  vtim_real c;
 
   CHECK_OBJ_NOTNULL(vd, VDIR_MAGIC);
   vdir_rdlock(vd);
   if (changed != NULL) {
-    c = *changed;
     *changed = 0;
-  } else c = 0;
   for (u = 0; u < vd->n_backend; u++) {
-    VCL_BOOL h;
     be = vd->backend[u];
     CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
 
-    h = VRT_Healthy(ctx, be, &c);
+    retval = VRT_Healthy(ctx, be, &c);
     if (changed != NULL && c > *changed)
       *changed = c;
-    if (h) {
-      retval++;
+    if (retval)
       break;
     }
   }
   vdir_unlock(vd);
   return (retval);
+}
+
+static unsigned
+vdir_update_health(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, double *total_weight) {
+  VCL_TIME c, changed = 0;
+  VCL_BOOL h;
+  VCL_BACKEND be;
+  struct vbitmap *blacklist = vd->vbm;
+  unsigned u;
+  unsigned count = 0;
+  double tw = 0.0;
+
+  for (u = 0; u < vd->n_backend; u++) {
+    be = vd->backend[u];
+    CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
+    c = 0;
+    h = VRT_Healthy(ctx, be, &c);
+    if (c > changed)
+      changed = c;
+    if (h) {
+      tw += vd->weight[u];
+      count++;
+      if (vbit_test(blacklist, u))
+        vbit_clr(blacklist, u);
+    } else if (!vbit_test(blacklist, u))
+      vbit_set(blacklist, u);
+  }
+
+  VRT_SetChanged(dir, changed);
+  if (total_weight) {
+    *total_weight = tw;
+  }
+  return (count);
 }
 
 static unsigned
@@ -207,19 +236,15 @@ vdir_pick_by_weight(const struct vdir *vd, double w,
 }
 
 VCL_BACKEND
-vdir_pick_ben(VRT_CTX, struct vdir *vd, unsigned i)
+vdir_pick_ben(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, unsigned i)
 {
-  unsigned u, c = 0;
+  unsigned u, c;
   VCL_BACKEND be = NULL;
 
-  vdir_rdlock(vd);
-  for (u = 0; u < vd->n_backend; u++) {
-    if (VRT_Healthy(ctx, vd->backend[u], NULL)) {
-      vbit_clr(vd->vbm, u);
-      c++;
-    } else
-      vbit_set(vd->vbm, u);
-  }
+  CHECK_OBJ_NOTNULL(dir, DIRECTOR_MAGIC);
+  vdir_wrlock(vd);
+  c = vdir_update_health(ctx, vd, dir, NULL);
+
   if (c) {
     i %= c;
     for (u = 0; u < vd->n_backend; u++) {
@@ -235,20 +260,16 @@ vdir_pick_ben(VRT_CTX, struct vdir *vd, unsigned i)
 }
 
 VCL_BACKEND
-vdir_pick_be(VRT_CTX, struct vdir *vd, double w)
+vdir_pick_be(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, double w)
 {
   unsigned u;
   double tw = 0.0;
   VCL_BACKEND be = NULL;
 
-  vdir_rdlock(vd);
-  for (u = 0; u < vd->n_backend; u++) {
-    if (VRT_Healthy(ctx, vd->backend[u], NULL)) {
-      vbit_clr(vd->vbm, u);
-      tw += vd->weight[u];
-    } else
-      vbit_set(vd->vbm, u);
-  }
+  CHECK_OBJ_NOTNULL(dir, DIRECTOR_MAGIC);
+  vdir_wrlock(vd);
+  vdir_update_health(ctx, vd, dir, &tw);
+
   if (tw > 0.0) {
     u = vdir_pick_by_weight(vd, w * tw, vd->vbm);
     assert(u < vd->n_backend);
