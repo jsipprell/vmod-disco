@@ -42,7 +42,7 @@ vd_healthy(VRT_CTX, VCL_BACKEND d, VCL_TIME *changed)
   return (vpridir_any_healthy(ctx, dd->vd, changed));
 }
 
-static const struct director * v_matchproto_(vdi_resolve_f)
+static VCL_BACKEND v_matchproto_(vdi_resolve_f)
 vd_resolve(VRT_CTX, VCL_BACKEND d) 
 {
   disco_t *dd;
@@ -53,7 +53,7 @@ vd_resolve(VRT_CTX, VCL_BACKEND d)
   return vpridir_pick_be(ctx, dd->vd, scalbn(random(), -31));
 }
 
-static const struct director * v_matchproto_(vdi_resolve_f)
+static VCL_BACKEND v_matchproto_(vdi_resolve_f)
 vd_resolve_rr(VRT_CTX, VCL_BACKEND d)
 {
   disco_t *dd;
@@ -76,7 +76,7 @@ static void expand_discovered_backends(disco_t *d, unsigned sz)
   d->l_backends = sz;
 }
 
-static void update_vdir_add_backend(struct vpridir *vdir, unsigned pri, unsigned weight, const struct director *be)
+static void update_vdir_add_backend(struct vpridir *vdir, unsigned pri, unsigned weight, VCL_BACKEND be)
 {
   CHECK_OBJ_NOTNULL(vdir, VPRIDIR_MAGIC);
 
