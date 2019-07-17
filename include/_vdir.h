@@ -45,7 +45,7 @@ void vdir_delete(struct vdir **vdp);
 void vdir_rdlock(struct vdir *vd);
 void vdir_wrlock(struct vdir *vd);
 void vdir_unlock(struct vdir *vd);
-unsigned vdir_add_backend(struct vdir *, VCL_BACKEND be, double weight);
+int vdir_add_backend(struct vdir *, VCL_BACKEND be, double weight);
 unsigned vdir_remove_backend(struct vdir *, VCL_BACKEND be);
 unsigned vdir_any_healthy(VRT_CTX, struct vdir *, double *changed);
 VCL_BACKEND vdir_pick_be(VRT_CTX, struct vdir *, VCL_BACKEND,  double w);

@@ -89,9 +89,9 @@ void vpridir_unlock(struct vpridir *vp)
   AZ(pthread_rwlock_unlock(&vp->mtx));
 }
 
-unsigned vpridir_add_backend(struct vpridir *vp, VCL_BACKEND be, unsigned short pri, double weight)
+int vpridir_add_backend(struct vpridir *vp, VCL_BACKEND be, unsigned short pri, double weight)
 {
-  unsigned u;
+  unsigned i;
   vpridir_t *v;
 
   CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
@@ -122,9 +122,15 @@ foundpri:
   CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
   assert(v->pri == pri);
 
-  u = vdir_add_backend(v->vd, be, weight);
+  i = vdir_add_backend(v->vd, be, weight);
+  if (i < 0) {
+    vdir_delete(&v->vd);
+    AZ(v->vd);
+    VTAILQ_REMOVE(&vp->vdirs, v, list);
+    FREE_OBJ(v);
+  }
   vpridir_unlock(vp);
-  return (u);
+  return (i);
 }
 
 unsigned vpridir_remove_backend(struct vpridir *vp, VCL_BACKEND be)

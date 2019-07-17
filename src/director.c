@@ -81,7 +81,9 @@ static void update_vdir_add_backend(struct vpridir *vdir, unsigned pri, unsigned
   CHECK_OBJ_NOTNULL(vdir, VPRIDIR_MAGIC);
 
   assert(weight <= 0xffff);
-  vpridir_add_backend(vdir, be, pri, 1.0 + scalbn(weight, -16));
+  if (vpridir_add_backend(vdir, be, pri, 1.0 + scalbn(weight, -16)) < 0) {
+    VSL(SLT_Error, 0, "Cannot add new vmod_disco backend, would exceed max of %d per director.", SLT__MAX);
+  }
 }
 
 static void compact_backends(disco_t *d)

@@ -110,7 +110,7 @@ vdir_unlock(struct vdir *vd)
 }
 
 
-unsigned
+int
 vdir_add_backend(struct vdir *vd, VCL_BACKEND be, double weight)
 {
   unsigned u;
@@ -118,6 +118,10 @@ vdir_add_backend(struct vdir *vd, VCL_BACKEND be, double weight)
   CHECK_OBJ_NOTNULL(vd, VDIR_MAGIC);
   AN(be);
   vdir_wrlock(vd);
+  if (vd->n_backend >= SLT__MAX) {
+    vdir_unlock(vd);
+    return (-1);
+  }
   if (vd->n_backend >= vd->l_backend)
     vdir_expand(vd, vd->l_backend + 16);
   assert(vd->n_backend < vd->l_backend);
@@ -202,9 +206,9 @@ vdir_update_health(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, double *total_weig
     if (h) {
       tw += vd->weight[u];
       count++;
-      if (u < SLT__MAX && vbit_test(blacklist, u))
+      if (vbit_test(blacklist, u))
         vbit_clr(blacklist, u);
-    } else if (u < SLT__MAX && !vbit_test(blacklist, u))
+    } else if (!vbit_test(blacklist, u))
       vbit_set(blacklist, u);
   }
 
