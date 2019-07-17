@@ -14,6 +14,7 @@ libvmod_disco_la_SOURCES = vdir.c vpridir.c vpridir.h update.c \
 	bgthread.c event.c director.c disco.h $(top_srcdir)/include/atomic.h
 
 nodist_libvmod_disco_la_SOURCES = vcc_disco_if.c vcc_disco_if.h
+$(libvmod_disco_la_OBJECTS): vcc_disco_if.h
 
 @BUILD_VMOD_DISCO@
 
