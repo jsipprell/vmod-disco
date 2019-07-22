@@ -169,7 +169,7 @@ vdir_any_healthy(VRT_CTX, struct vdir *vd, VCL_TIME *changed)
 
   CHECK_OBJ_NOTNULL(vd, VDIR_MAGIC);
   vdir_rdlock(vd);
-  if (changed != NULL) {
+  if (changed != NULL)
     *changed = 0;
   for (u = 0; u < vd->n_backend; u++) {
     be = vd->backend[u];
@@ -180,7 +180,6 @@ vdir_any_healthy(VRT_CTX, struct vdir *vd, VCL_TIME *changed)
       *changed = c;
     if (retval)
       break;
-    }
   }
   vdir_unlock(vd);
   return (retval);
