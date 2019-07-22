@@ -204,3 +204,28 @@ BACKEND xrandom.backend()
 Description
   Returns a random backend selector in exactly the same way that
   vmod_directors' `backend()` methods do.
+
+INSTALLATION
+============
+
+The source tree is based on autotools to configure the building, and
+does also have the necessary bits in place to do functional unit tests
+using the ``varnishtest`` tool.
+
+Building requires the Varnish header files and uses pkg-config to find
+the necessary paths.
+
+.. parsed-literal::
+  $ ./configure
+  $ make
+  $ make install
+
+
+If you have installed Varnish to a non-standard directory, call autogen.sh and configure with PKG_CONFIG_PATH pointing to the appropriate path. 
+For instance, when varnishd configure was called with --prefix=$PREFIX, use
+
+.. parsed-literal::
+   $ export PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig
+   $ export ACLOCAL_PATH=${PREFIX}/share/aclocal
+
+The module will inherit its prefix from Varnish, unless you specify a different --prefix when running the configure script for this module.
