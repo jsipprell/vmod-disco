@@ -255,7 +255,7 @@ vdir_list(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, struct vsb *vsb, int pflag,
       } else {
         VSB_cat(vsb, "\t");
         VSB_cat(vsb, be->vcl_name);
-        VSB_printf(vsb, "\t%hu\t%6.2f\t", pri, 100 * w / tw);
+        VSB_printf(vsb, "\t%hu\t%6.2f\t", pri, (tw > 0.0 ? 100 * w / tw : 0.0));
         VSB_cat(vsb, unhealthy ? "sick": "healthy");
         VSB_cat(vsb, "\n");
       }
