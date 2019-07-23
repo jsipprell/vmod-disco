@@ -33,7 +33,27 @@ struct vmod_disco_round_robin {
   struct vmod_disco_selector selector;
 };
 
-static unsigned v_matchproto_(vdi_healthy_f)
+static void v_matchproto_(vdi_list_f)
+vd_list(VRT_CTX, VCL_BACKEND d, struct vsb *vsb, int pflag, int jflag)
+{
+  disco_t *dd;
+  CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+  CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
+  CAST_OBJ_NOTNULL(dd, d->priv, VMOD_DISCO_DIRECTOR_MAGIC);
+
+  if (pflag) {
+    if (jflag) {
+      VSB_cat(vsb, "{\n");
+      VSB_indent(vsb, 2);
+      VSB_cat(vsb, "\"backends\": {\n");
+      VSB_indent(vsb, 2);
+    } else VSB_cat(vsb, "\n\n\tBackend\tPriority\tWeight\tHealth\n");
+  }
+
+  vpridir_list(ctx, dd->vd, vsb, pflag, jflag);
+
+}
+static VCL_BOOL v_matchproto_(vdi_healthy_f)
 vd_healthy(VRT_CTX, VCL_BACKEND d, VCL_TIME *changed)
 {
   disco_t *dd;
@@ -347,7 +367,7 @@ static void vmod_selector_init(VRT_CTX, struct vmod_disco_selector *p, const cha
   d->freq = interval;
   d->fuzz = (interval / 2) + ((interval / 4) - (interval / 2) * scalbn(random(), -31));
   d->priv = vdi_priv;
-  vpridir_new(ctx, &d->vd, vcl_name, (hfn ? hfn : vd_healthy), (rfn ? rfn : vd_resolve), d);
+  vpridir_new(ctx, &d->vd, vcl_name, (hfn ? hfn : vd_healthy), (rfn ? rfn : vd_resolve), vd_list, d);
   VTAILQ_INSERT_TAIL(&vd->dirs, d, list);
   p->d = d;
 

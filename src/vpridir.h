@@ -10,7 +10,7 @@ struct vpridir {
 };
 
 void vpridir_new(VRT_CTX, struct vpridir **vdp, const char *vcl_name,
-    vdi_healthy_f *healthy, vdi_resolve_f *resolve, void *priv);
+    vdi_healthy_f *healthy, vdi_resolve_f *resolve, vdi_list_f *list, void *priv);
 void vpridir_delete(struct vpridir **vdp);
 void vpridir_rdlock(struct vpridir *vd);
 void vpridir_wrlock(struct vpridir *vd);
@@ -21,3 +21,4 @@ unsigned vpridir_remove_backend(struct vpridir *, VCL_BACKEND be);
 unsigned vpridir_any_healthy(VRT_CTX, struct vpridir *, VCL_TIME *changed);
 VCL_BACKEND vpridir_pick_be(VRT_CTX, struct vpridir *, double w);
 VCL_BACKEND vpridir_pick_ben(VRT_CTX, struct vpridir *, unsigned i);
+void vpridir_list(VRT_CTX, struct vpridir*, struct vsb*, int, int);

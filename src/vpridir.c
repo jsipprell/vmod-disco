@@ -7,6 +7,7 @@
 #include "cache/cache.h"
 
 #include "vbm.h"
+#include "vsb.h"
 
 #include "vpridir.h"
 #include "vdir.h"
@@ -22,7 +23,7 @@ typedef struct vpri_director {
 
 
 void vpridir_new(VRT_CTX, struct vpridir **vpd, const char *vcl_name,
-                vdi_healthy_f *healthy, vdi_resolve_f *resolve, void *priv)
+                vdi_healthy_f *healthy, vdi_resolve_f *resolve, vdi_list_f *list, void *priv)
 {
   struct vpridir *vp;
 
@@ -38,6 +39,7 @@ void vpridir_new(VRT_CTX, struct vpridir **vpd, const char *vcl_name,
   vp->methods->type = "disco";
   vp->methods->healthy = healthy;
   vp->methods->resolve = resolve;
+  vp->methods->list = list;
   vp->dir = VRT_AddDirector(ctx, vp->methods, priv, "%s", vcl_name);
   AN(vp->dir);
 }
@@ -190,6 +192,37 @@ VCL_BACKEND vpridir_pick_ben(VRT_CTX, struct vpridir *vp, unsigned i)
 benpicked:
   vpridir_unlock(vp);
   return (be);
+}
+
+void vpridir_list(VRT_CTX, struct vpridir *vp, struct vsb *vsb, int pflag, int jflag)
+{
+  vpridir_t *v;
+  unsigned count = 0;
+
+  vpridir_rdlock(vp);
+  VTAILQ_FOREACH(v, &vp->vdirs, list) {
+    CHECK_OBJ_NOTNULL(v, VPRI_MAGIC);
+    vdir_list(ctx, v->vd, vp->dir, vsb, pflag, jflag, v->pri);
+    count++;
+  }
+  vpridir_unlock(vp);
+
+  if (!count) {
+    if (jflag && pflag) {
+      VSB_cat(vsb, "\n");
+      VSB_indent(vsb, -2);
+      VSB_cat(vsb, "}\n");
+      VSB_indent(vsb, -2);
+      VSB_cat(vsb, "},\n");
+    }
+
+    if (!pflag) {
+      if (jflag)
+        VSB_cat(vsb, "[0, 0, \"sick\"]");
+      else
+        VSB_cat(vsb, "0/0\tsick");
+    }
+  }
 }
 
 unsigned vpridir_any_healthy(VRT_CTX, struct vpridir *vp, VCL_TIME *changed)

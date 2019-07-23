@@ -50,3 +50,4 @@ unsigned vdir_remove_backend(struct vdir *, VCL_BACKEND be);
 unsigned vdir_any_healthy(VRT_CTX, struct vdir *, double *changed);
 VCL_BACKEND vdir_pick_be(VRT_CTX, struct vdir *, VCL_BACKEND,  double w);
 VCL_BACKEND vdir_pick_ben(VRT_CTX, struct vdir *, VCL_BACKEND, unsigned i);
+void vdir_list(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, struct vsb *vsb, int pflag, int jflag, unsigned short pri);

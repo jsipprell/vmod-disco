@@ -38,6 +38,7 @@
 #include "miniobj.h"
 #include "vas.h"
 #include "vbm.h"
+#include "vsb.h"
 
 #include "vdir.h"
 
@@ -216,6 +217,68 @@ vdir_update_health(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, double *total_weig
     *total_weight = tw;
   }
   return (count);
+}
+
+void
+vdir_list(VRT_CTX, struct vdir *vd, VCL_BACKEND dir, struct vsb *vsb, int pflag, int jflag, unsigned short pri) 
+{
+  VCL_BACKEND be;
+  unsigned u, nh = 0;
+  double w, tw = 0.0;
+  VCL_BOOL unhealthy;
+
+
+  vdir_rdlock(vd);
+  vdir_update_health(ctx, vd, dir, &tw);
+
+  for (u = 0; u < vd->n_backend; u++) {
+    be = vd->backend[u];
+    CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
+    if (!(unhealthy = vbit_test(vd->vbm, u)))
+      nh++;
+
+    if (pflag) {
+      w = unhealthy ? 0.0 : vd->weight[u];
+      if (jflag) {
+        if (u)
+          VSB_cat(vsb, ",\n");
+        VSB_printf(vsb, "\"%s\": {\n", be->vcl_name);
+        VSB_indent(vsb, 2);
+        if (unhealthy)
+          VSB_cat(vsb, "\"health\": \"sick\",\n");
+        else
+          VSB_cat(vsb, "\"health\": \"healthy\",\n");
+        VSB_printf(vsb, "\"priority\": %hu,\n", pri);
+        VSB_printf(vsb, "\"weight\": %f\n", w);
+        VSB_indent(vsb, -2);
+        VSB_cat(vsb, "}");
+      } else {
+        VSB_cat(vsb, "\t");
+        VSB_cat(vsb, be->vcl_name);
+        VSB_printf(vsb, "\t%hu\t%6.2f\t", pri, 100 * w / tw);
+        VSB_cat(vsb, unhealthy ? "sick": "healthy");
+        VSB_cat(vsb, "\n");
+      }
+    }
+  }
+  u = vd->n_backend;
+  vdir_unlock(vd);
+
+  if (jflag && pflag) {
+    VSB_cat(vsb, "\n");
+    VSB_indent(vsb, -2);
+    VSB_cat(vsb, "}\n");
+    VSB_indent(vsb, -2);
+    VSB_cat(vsb, "},\n");
+  }
+
+  if (pflag) return;
+
+  if (jflag)
+    VSB_printf(vsb, "[%u, %u, \"%s\"]", nh, u,
+              nh ? "healthy": "sick");
+  else
+    VSB_printf(vsb, "%u/%u\t%s", nh, u, nh ? "healthy" : "sick");
 }
 
 static unsigned
