@@ -3,7 +3,7 @@ AC_COPYRIGHT([Your mom])
 AC_INIT([libvmod_disco], [1.1.0])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build])
-m4_ifndef([VARNISH_VMODS], AC_MSG_ERROR([Needs varnish m4 -- is MI-varnish6-devel installed?]))
+m4_ifndef([VARNISH_VMODS], AC_MSG_ERROR([Needs varnish.m4]))
 AM_CONFIG_HEADER(include/config.h)
 
 AC_CANONICAL_SYSTEM
@@ -66,6 +66,7 @@ AC_DEFUN([PKG_CHECK_VAR],
   ])# PKG_CHECK_VAR
 ])
 
+VARNISH_PREREQ([6.2.0])
 VARNISH_VMODS([disco])
 
 save_CPPFLAGS="$CPPFLAGS"
