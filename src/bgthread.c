@@ -359,13 +359,7 @@ void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, un
 
   AN(lck_disco);
   Lck_New(&wrk->mtx, lck_disco);
-// #ifdef HAVE_CLOCK_GETTIME
-//  AZ(pthread_condattr_init(&wrk->conda));
-//  AZ(pthread_condattr_setclock(&wrk->conda, CLOCK_MONOTONIC));
-//  AZ(pthread_cond_init(&wrk->cond, &wrk->conda));
-//#else
   AZ(pthread_cond_init(&wrk->cond, NULL));
-//#endif
   wrk->gen = 1;
   wrk->interval = interval;
   wrk->priv = priv;
@@ -407,9 +401,6 @@ void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp)
   AZ(pthread_join(bg->thr, NULL));
   AZ(bg->gen);
   AZ(pthread_cond_destroy(&bg->cond));
-#ifdef HAVE_CLOCK_GETTIME
-  AZ(pthread_condattr_destroy(&bg->conda));
-#endif
   VSB_destroy(&bg->vsb);
   Lck_Delete(&bg->mtx);
   FREE_OBJ(bg);
