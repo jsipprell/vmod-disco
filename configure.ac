@@ -47,11 +47,6 @@ AC_ARG_WITH([libadns],
   ],[LIBADNS_INCLUDES='auto'])
 
 AC_CHECK_PROGS(RST2MAN, [rst2man rst2man.py], "no")
-if test x"$RST2MAN" = x"no"; then
-  AC_MSG_WARN([rst2man not found - not building man pages])
-fi
-AM_CONDITIONAL(HAVE_RST2MAN, [test x"$RST2MAN" != x"no"])
-
 
 AC_HEADER_STDC
 AC_CHECK_HEADERS([sys/stdlib.h])
