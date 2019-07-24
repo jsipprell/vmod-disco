@@ -12,5 +12,7 @@
 #define vdir_exact_be _munge(vdir_exact_be)
 #define vdir_expand _munge(vdir_expand)
 #define vdir_pick_by_weight _munge(vdir_pick_by_weight)
+#define vdir_list _munge(vdir_list)
+
 #include "_vdir.h"
 

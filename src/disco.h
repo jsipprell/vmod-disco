@@ -75,8 +75,6 @@ void vmod_disco_bgthread_start(struct vmod_disco_bgthread **wrkp, void *priv, un
 void vmod_disco_bgthread_kick(struct vmod_disco_bgthread *wrk, unsigned shutdown);
 void vmod_disco_bgthread_delete(struct vmod_disco_bgthread **wrkp);
 
-void current_vmod(struct vmod_priv*);
-
 void update_rwlock_new(update_rwlock_t*);
 void update_rwlock_delete(update_rwlock_t*);
 void update_rwlock_rdlock(update_rwlock_t);
