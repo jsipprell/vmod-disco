@@ -25,6 +25,7 @@ static void disco_thread_dnslog(adns_state, void *priv, const char *fmt, va_list
     AZ((bg)->dns); \
     AZ(adns_init_logfn(&(bg)->dns, adns_if_nosigpipe|adns_if_permit_ipv4|adns_if_permit_ipv6, NULL, \
                      disco_thread_dnslog, (bg))); \
+    AN((bg)->dns); \
   } while(0)
 #else /* ! ADNS_LOG */
 #define ADNS_INIT(bg) \
@@ -32,6 +33,7 @@ static void disco_thread_dnslog(adns_state, void *priv, const char *fmt, va_list
     AZ((bg)->dns); \
     AZ(adns_init(&(bg)->dns, adns_if_noerrprint|adns_if_noserverwarn|adns_if_nosigpipe| \
                              adns_if_permit_ipv4|adns_if_permit_ipv6, NULL)); \
+    AN((bg)->dns); \
   } while(0)
 #endif /* ADNS_LOG */
 #define ADNS_FREE(bg) \
@@ -311,11 +313,7 @@ disco_thread(struct worker *wrk, void *priv)
   Lck_Lock(&bg->mtx);
   VSL(SLT_Debug, 0, "disco: bgthread startup");
   while (!shutdown) {
-// #ifdef HAVE_CLOCK_GETTIME
-//    d = disco_thread_run(wrk, bg, VTIM_mono());
-//#else
     d = disco_thread_run(wrk, bg, VTIM_real());
-//#endif
     Lck_AssertHeld(&bg->mtx);
     if (!bg->shutdown && bg->dns) {
       Lck_Unlock(&bg->mtx);
