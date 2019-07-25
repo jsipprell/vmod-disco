@@ -1,0 +1,4 @@
+{
+  global: Vmod_disco_Data;
+  local: *;
+};

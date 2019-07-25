@@ -24,6 +24,8 @@ AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 AC_PROG_MAKE_SET
 
+LD_VERSION_SCRIPT([symbols.map])
+
 AC_ARG_WITH([libadns],
   AS_HELP_STRING([--with-libadns=PATH], [Location of libadns (auto)]),
   [dnl
