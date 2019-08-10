@@ -148,7 +148,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
       for (u = 0; u < d->n_srv; u++) {
         if (d->srv[u].port > 0) {
           memset(&d->srv[u], 0, sizeof(d->srv[u]));
-          d->changes++;
+          (void)VATOMIC_INC32(d->changes);
         }
       }
     }
@@ -174,7 +174,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
       if (w <= ans->nrrs) {
         assert(u < d->n_srv);
         memset(&d->srv[u], 0, sizeof(d->srv[u]));
-        d->changes++;
+        (void)VATOMIC_INC32(d->changes);
       }
     }
   }
@@ -182,7 +182,7 @@ static void disco_thread_dnsresp(void *priv, disco_t *d, adns_answer *ans)
   for (u = 0; u < ans->nrrs; u++) {
     if (ans->rrs.srvha[u].ha.naddrs > 0) {
       s = &d->srv[d->n_srv++];
-      d->changes++;
+      (void)VATOMIC_INC32(d->changes);
       assert(d->n_srv < d->l_srv);
       memset(s, 0, sizeof(*s));
       cp = &s->name[0];

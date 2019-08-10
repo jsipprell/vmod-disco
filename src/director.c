@@ -18,8 +18,6 @@
 #include "vcc_disco_if.h"
 #include "disco.h"
 
-#include "atomic.h"
-
 struct vmod_disco_random {
   unsigned magic;
 #define VMOD_DISCO_RANDOM_MAGIC 0x4eef931a
@@ -84,7 +82,7 @@ vd_resolve_rr(VRT_CTX, VCL_BACKEND d)
   CAST_OBJ_NOTNULL(dd, d->priv, VMOD_DISCO_DIRECTOR_MAGIC);
   CAST_OBJ_NOTNULL(rr, dd->priv, VMOD_DISCO_ROUNDROBIN_MAGIC);
 
-  return vpridir_pick_ben(ctx, dd->vd, VATOMIC_INC32(dd->vd, rr->idx));
+  return vpridir_pick_ben(ctx, dd->vd, VATOMIC_INC32(rr->idx));
 }
 
 static void expand_discovered_backends(disco_t *d, unsigned sz)
@@ -281,7 +279,7 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
   struct vmod_disco *vd;
   disco_t *d;
   int err, wrlock = 0;
-  unsigned changes;
+  uint32_t changes;
 
   CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
   AN(priv);
@@ -294,7 +292,7 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
       return;
     }
     WRONG("inappropriate attempt at disco dancing");
-  }
+ }
 
   err = update_rwlock_tryrdlock(vd->mtx);
   if (err == EBUSY) {
@@ -304,19 +302,19 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
   AZ(err);
 
   VTAILQ_FOREACH(d, &vd->dirs, list) {
-    if ((changes = d->changes) > 0) {
+    if ((changes = VATOMIC_GET32(d->changes)) > 0) {
       if (!wrlock) {
         update_rwlock_unlock(vd->mtx, NULL);
         err = update_rwlock_tryanylock(vd->mtx, &wrlock);
         if (err == EBUSY) {
           AZ(wrlock);
           return;
-        } else if (wrlock) changes = d->changes;
+        } else if (wrlock) changes = VATOMIC_GET32(d->changes);
         AZ(err);
       }
       if (wrlock && changes) {
         VSL(SLT_Debug, 0, "%u changes to %s director", changes, d->name);
-        d->changes = 0;
+        VATOMIC_SET32(d->changes, 0);
         update_backends(ctx,vd,d,0);
       }
     }
@@ -367,10 +365,10 @@ static void vmod_selector_init(VRT_CTX, struct vmod_disco_selector *p, const cha
   d->freq = interval;
   d->fuzz = (interval / 2) + ((interval / 4) - (interval / 2) * scalbn(random(), -31));
   d->priv = vdi_priv;
+  VATOMIC_INIT(d->changes);
   vpridir_new(ctx, &d->vd, vcl_name, (hfn ? hfn : vd_healthy), (rfn ? rfn : vd_resolve), vd_list, d);
   VTAILQ_INSERT_TAIL(&vd->dirs, d, list);
   p->d = d;
-
   update_rwlock_unlock(vd->mtx, NULL);
   if (vd->wrk)
     vmod_disco_bgthread_kick(vd->wrk, 0);
@@ -386,6 +384,7 @@ vmod_round_robin__init(VRT_CTX, struct vmod_disco_round_robin **p, const char *v
 
   ALLOC_OBJ(*p, VMOD_DISCO_ROUNDROBIN_MAGIC);
   AN(*p);
+  VATOMIC_INIT((*p)->idx);
   vmod_selector_init(ctx, &(*p)->selector, vcl_name, priv, name, interval,
                      vd_healthy, vd_resolve_rr, (*p));
 }
@@ -446,6 +445,7 @@ vmod_selector_fini(struct vmod_disco_selector *p)
   p->d->addrs = NULL;
 
   vpridir_delete(&p->d->vd);
+  VATOMIC_FINI(p->d->changes);
   FREE_OBJ(p->d);
   p->d = NULL;
   p->mod = NULL;
@@ -465,6 +465,7 @@ vmod_round_robin__fini(struct vmod_disco_round_robin **rrp)
 
   CHECK_OBJ_NOTNULL(rr, VMOD_DISCO_ROUNDROBIN_MAGIC);
   vmod_selector_fini(&rr->selector);
+  VATOMIC_FINI(rr->idx);
   FREE_OBJ(rr);
 }
 
@@ -553,7 +554,7 @@ vmod_selector_set_probe(VRT_CTX, struct vmod_disco_selector *p, const struct vrt
   p->d->probe = probe;
   if (ctx->ws) {
     VTAILQ_FOREACH(d, &vd->dirs, list) {
-      d->changes = 0;
+      VATOMIC_SET32(d->changes, 0);
       update_backends(ctx,vd,d,1);
     }
   }

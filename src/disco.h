@@ -1,5 +1,6 @@
 #ifndef VMOD_DISCO_MAGIC
 #include <adns.h>
+#include "atomic.h"
 
 typedef struct update_rwlock* update_rwlock_t;
 
@@ -49,7 +50,7 @@ struct vmod_disco_director {
 
   dns_srv_t *srv;
   unsigned n_srv, l_srv;
-  unsigned changes;
+  vatomic_uint32_t changes;
 
   const struct suckaddr **addrs;
   VCL_BACKEND *backends;
