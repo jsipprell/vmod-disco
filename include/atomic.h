@@ -47,52 +47,88 @@ typedef struct { const void* volatile _atomic; } __attribute__((aligned(SIZEOF_V
 
 #define VATOMIC_INIT(op) ((op)._atomic = 0)
 #define VATOMIC_FINI(op) ((void)(op))
-#define VATOMIC_SET32(ap,v) ((ap)._atomic = (v))
-#define VATOMIC_SET64(ap,v) ((ap)._atomic = (v))
-#define VATOMIC_GET32(ap) ((ap)._atomic)
-#define VATOMIC_GET64(op) ((op)._atomic)
-#define VATOMIC_INC64(ap) (vatomic_add64(&(ap), 1)+1)
+#define VATOMIC_SET32(op,v) ((op)._atomic = (v))
+#define VATOMIC_GET32(op) ((op)._atomic)
+#define VATOMIC_INC64(op) (vatomic_add64(&(op), 1)+1)
 #define VATOMIC_DEC64(op) (vatomic_add64(&(op), -1)-1)
 #define VATOMIC_INC32(op) (vatomic_add32(&(op), 1)+1)
 #define VATOMIC_DEC32(op) (vatomic_add32(&(op), -1)-1)
 
 #ifdef ARCH_X86_64
-static inline int64_t vatomic_add64(vatomic_uint64_t *v, int64_t i)
+#define VATOMIC_SET64(op,v) ((op)._atomic = (v))
+#define VATOMIC_GET64(op) ((op)._atomic)
+
+static inline uint64_t vatomic_add64(vatomic_uint64_t *v, volatile int64_t i)
 {
-  asm volatile("lock; xaddq %%rax, %2;"
-               :"=a" (i)
-               :"a" (i), "m" (v->_atomic)
+  asm volatile("lock xaddq %0, %1;"
+               :"+r" (i)
+               :"m" (v->_atomic)
                :"memory");
-  return i;
+  return (uint64_t)i;
 }
+
 #elif defined(ARCH_X86)
-static inline int64_t vatomic_add64(vatomic_uint64_t *v, int64_t i)
+#define VATOMIC_SET64(op,v) (vatomic_set64(&(op), (v)))
+#define VATOMIC_GET64(op) (vatomic_get64(&(op)))
+
+static inline uint64_t vatomic_add64(vatomic_uint64_t *v, volatile int64_t i)
 {
   volatile uint32_t i32lo = i, i32hi = (i >> 32);
 
   asm volatile("movl %%ebx, %%eax;"
                "movl %%ecx, %%edx;"
-               "lock; cmpxchg8b %3;"
+               "lock cmpxchg8b %3;"
                "1: movl %%eax, %%ebx;"
                "movl %%edx, %%ecx;"
                "addl %1, %%ebx;"
                "adcl %2, %%ecx;"
-               "lock; cmpxchg8b %3;"
+               "lock cmpxchg8b %3;"
                "jne 1b"
                : "=&A" (i)
                : "m" (i32lo), "m" (i32hi), "m" (v->_atomic)
                :"ebx","ecx","memory");
+  return (uint64_t)i;
+}
+
+static inline uint64_t vatomic_get64(vatomic_uint64_t *v)
+{
+  volatile uint64_t i;
+
+  asm volatile("movl %%ebx, %%eax;"
+               "movl %%ecx, %%edx;"
+               "lock cmpxchg8b %1;"
+               : "=&A" (i)
+               : "m" (v->_atomic)
+               : "ebx","ecx","memory");
+
   return i;
+}
+
+static inline void vatomic_set64(vatomic_uint64_t *v, volatile uint64_t i)
+{
+  volatile uint32_t i32lo = i, i32hi = (i >> 32);
+
+  asm volatile("movl %%ebx, %%eax;"
+               "movl %%ecx, %%edx;"
+               "lock cmpxchg8b %2;"
+               "1: movl %0, %%ebx;"
+               "movl %1, %%ecx;"
+               "lock cmpxchg8b %2;"
+               "jne 1b"
+               :
+               : "m" (i32lo), "m" (i32hi), "m" (v->_atomic)
+               : "eax","edx","ebx","ecx","memory");
 }
 #else
 # error "Unsupported architecture"
 #endif
-static inline int32_t vatomic_add32(vatomic_uint32_t *v, int32_t i)
+static inline uint32_t vatomic_add32(vatomic_uint32_t *v, volatile int32_t i)
 {
-  asm volatile("lock; xaddl %%eax, %2;"
-               :"=a" (i)
-               :"a" (i), "m" (v->_atomic)
+  asm volatile("lock xaddl %0, %1;"
+               :"+r" (i)
+               :"m" (v->_atomic)
                :"memory");
-  return i;
+  return (uint32_t)i;
 }
+
 #endif /* HAVE_ATOMICPTR */
