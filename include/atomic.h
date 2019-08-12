@@ -15,7 +15,7 @@ typedef struct { pthread_mutex_t _m; const void *_atomic; } vatomic_ptr_t;
 #define VATOMIC_DEC32(op) (_vatomic_add32(&(op), -1)-1)
 #define VATOMIC_INC64(op) (_vatomic_add64(&(op), 1)+1)
 #define VATOMIC_DEC64(op) (_vatomic_add64(&(op), -1)-1)
-
+#define VATOMIC_CAS32(op,cmp,set) (_vatomic_cas32(&(op), (cmp), (set)))
 #define vatomic_declare(name, size, ...) _vatomic_##name##size(vatomic_uint##size##_t *v, ##__VA_ARGS__)
 #define vatomic_declare_get(size) static inline uint##size##_t vatomic_declare(get, size) { \
   register uint##size##_t value; \
@@ -32,10 +32,20 @@ typedef struct { pthread_mutex_t _m; const void *_atomic; } vatomic_ptr_t;
   AZ(pthread_mutex_unlock(&v->_m)); \
   return (old_value); \
 }
+#define vatomic_declare_cas(size) static inline unsigned char _vatomic_cas##size(vatomic_uint##size##_t *v, uint##size##_t cmp, uint##size##_t set) { \
+  register unsigned char ret; \
+  AZ(pthread_mutex_lock(&v->_m)); \
+  if ((ret = (v->_atomic == cmp))) v->_atomic = set; \
+  AZ(pthread_mutex_unlock(&v->_m)); \
+  return (ret); \
+}
+
 vatomic_declare_get(32)
 vatomic_declare_get(64)
 vatomic_declare_add(32)
 vatomic_declare_add(64)
+vatomic_declare_cas(32)
+#undef vatomic_declare_cas
 #undef vatomic_declare_get
 #undef vatomic_declare
 
@@ -53,6 +63,7 @@ typedef struct { const void* volatile _atomic; } __attribute__((aligned(SIZEOF_V
 #define VATOMIC_DEC64(op) (vatomic_add64(&(op), -1)-1)
 #define VATOMIC_INC32(op) (vatomic_add32(&(op), 1)+1)
 #define VATOMIC_DEC32(op) (vatomic_add32(&(op), -1)-1)
+#define VATOMIC_CAS32(op,cmp,set) (vatomic_cas32(&(op), (cmp), (set)))
 
 #ifdef ARCH_X86_64
 #define VATOMIC_SET64(op,v) ((op)._atomic = (v))
@@ -129,6 +140,19 @@ static inline uint32_t vatomic_add32(vatomic_uint32_t *v, volatile int32_t i)
                :"m" (v->_atomic)
                :"memory");
   return (uint32_t)i;
+}
+
+static inline unsigned char vatomic_cas32(vatomic_uint32_t *v, volatile uint32_t cmp, volatile uint32_t set)
+{
+  volatile unsigned char ret;
+
+  asm volatile("lock cmpxchgl %3, %1;"
+               "sete %0"
+               :"=q" (ret), "+m" (v->_atomic)
+               :"a" (cmp), "r" (set)
+               :"memory");
+
+  return ret;
 }
 
 #endif /* HAVE_ATOMICPTR */

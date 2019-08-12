@@ -20,9 +20,7 @@ struct update_rwlock {
   unsigned magic;
 #define UPDATE_RWLOCK_MAGIC 0x1eeffeef
   pthread_rwlock_t lock;
-
-  pthread_mutex_t mtx;
-  short           w;
+  vatomic_uint32_t w;
 };
 
 void update_rwlock_new(struct update_rwlock **rwp)
@@ -33,7 +31,7 @@ void update_rwlock_new(struct update_rwlock **rwp)
   ALLOC_OBJ(lock, UPDATE_RWLOCK_MAGIC);
   AN(lock);
   AZ(pthread_rwlock_init(&lock->lock, NULL));
-  AZ(pthread_mutex_init(&lock->mtx, NULL));
+  VATOMIC_INIT(lock->w);
   *rwp = lock;
 }
 
@@ -46,10 +44,10 @@ void update_rwlock_delete(struct update_rwlock **rwp)
   *rwp = NULL;
   CHECK_OBJ_NOTNULL(lock, UPDATE_RWLOCK_MAGIC);
   AZ(pthread_rwlock_wrlock(&lock->lock));
-  AZ(lock->w);
-  AZ(pthread_mutex_destroy(&lock->mtx));
+  AZ(VATOMIC_GET32(lock->w));
   AZ(pthread_rwlock_unlock(&lock->lock));
   AZ(pthread_rwlock_destroy(&lock->lock));
+  VATOMIC_FINI(lock->w);
   FREE_OBJ(lock);
 }
 
@@ -65,11 +63,7 @@ void update_rwlock_unlock(struct update_rwlock *lock, const struct update_rwlock
   if(wrlock) {
     CHECK_OBJ_NOTNULL(wrlock, UPDATE_RWLOCK_MAGIC);
     assert(wrlock == lock);
-    AZ(pthread_mutex_lock(&lock->mtx));
-    AN(lock->w);
-    lock->w--;
-    AZ(lock->w);
-    AZ(pthread_mutex_unlock(&lock->mtx));
+    AN(VATOMIC_CAS32(lock->w, 1, 0));
   }
   AZ(pthread_rwlock_unlock(&lock->lock));
 }
@@ -89,17 +83,12 @@ int update_rwlock_tryrdlock(struct update_rwlock *lock)
 int update_rwlock_tryanylock(struct update_rwlock *lock, int *wrlocked)
 {
   CHECK_OBJ_NOTNULL(lock, UPDATE_RWLOCK_MAGIC);
-  AZ(pthread_mutex_lock(&lock->mtx));
-  if (lock->w == 0) {
-    lock->w++;
+  if (VATOMIC_CAS32(lock->w, 0, 1)) {
     if (wrlocked)
-      *wrlocked = lock->w;
-    AZ(pthread_mutex_unlock(&lock->mtx));
-    AZ(pthread_rwlock_wrlock(&lock->lock));
-    return 0;
+      *wrlocked = 1;
+    return pthread_rwlock_wrlock(&lock->lock);
   } else if(wrlocked)
     *wrlocked = 0;
-  AZ(pthread_mutex_unlock(&lock->mtx));
   return pthread_rwlock_tryrdlock(&lock->lock);
 }
 
