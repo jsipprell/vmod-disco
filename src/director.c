@@ -129,17 +129,14 @@ static void compact_backends(disco_t *d)
   assert(d->n_srv == d->n_backends);
 }
 
-static const char *mkvclname(struct ws *ws, struct vmod_disco *vd,
-                             const char *prefix, const char *suffix,
+static const char *mkvclname(struct ws *ws, const char *prefix,
+                             const char *suffix,
                              unsigned short port)
 {
-  int i;
   unsigned u, l;
-  disco_t *d;
   char *cp, *name;
 
   CHECK_OBJ_NOTNULL(ws, WS_MAGIC);
-  CHECK_OBJ_NOTNULL(vd, VMOD_DISCO_MAGIC);
 
   l = strlen(prefix) + strlen(suffix);
   u = WS_Reserve(ws, 0);
@@ -150,27 +147,13 @@ static const char *mkvclname(struct ws *ws, struct vmod_disco *vd,
   *cp++ = '_';
   strcpy(cp, suffix);
   cp = name + l + 1;
-  AZ(*cp);
 
-  VTAILQ_FOREACH(d, &vd->dirs, list) {
-    CHECK_OBJ_NOTNULL(d, VMOD_DISCO_DIRECTOR_MAGIC);
-    for(i = 0; i < d->n_backends; i++) {
-      if (i >= d->n_srv || !d->addrs[i] || !d->srv[i].port)
-        continue;
-      CHECK_OBJ_NOTNULL(d->backends[i], DIRECTOR_MAGIC);
-      if (strcasecmp(d->backends[i]->vcl_name, name))
-        continue;
-      sprintf(cp, "_%hu", port);
-      goto madevclname;
-    }
-  }
-
-madevclname:
+  sprintf(cp, "_%hu", port);
   WS_Release(ws, strlen(name)+1);
   return name;
 }
 
-static void update_backends(VRT_CTX, struct vmod_disco *vd, disco_t *d, short recreate)
+static void update_backends(VRT_CTX, disco_t *d, short recreate)
 {
   unsigned u,i,c = 0;
   struct suckaddr *ip;
@@ -234,7 +217,7 @@ static void update_backends(VRT_CTX, struct vmod_disco *vd, disco_t *d, short re
       assert(VSA_Sane(ip));
       INIT_OBJ(&be, VRT_BACKEND_MAGIC);
       AN(d->srv[i].name);
-      be.vcl_name = mkvclname(ctx->ws, vd, d->vd->dir->vcl_name, d->srv[i].name, VSA_Port(ip));
+      be.vcl_name = mkvclname(ctx->ws, d->vd->dir->vcl_name, d->srv[i].name, VSA_Port(ip));
       AN(be.vcl_name);
       be.probe = d->probe;
       be.hosthdr = d->name;
@@ -315,7 +298,7 @@ vmod_dance(VRT_CTX, struct vmod_priv *priv)
       if (wrlock && changes) {
         VSL(SLT_Debug, 0, "%u changes to %s director", changes, d->name);
         VATOMIC_SET32(d->changes, 0);
-        update_backends(ctx,vd,d,0);
+        update_backends(ctx,d,0);
       }
     }
   }
@@ -555,7 +538,7 @@ vmod_selector_set_probe(VRT_CTX, struct vmod_disco_selector *p, const struct vrt
   if (ctx->ws) {
     VTAILQ_FOREACH(d, &vd->dirs, list) {
       VATOMIC_SET32(d->changes, 0);
-      update_backends(ctx,vd,d,1);
+      update_backends(ctx,d,1);
     }
   }
   update_rwlock_unlock(vd->mtx, NULL);
