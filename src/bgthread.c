@@ -293,8 +293,6 @@ nextquery:
   }
   update_rwlock_unlock(mod->mtx, NULL);
 
-  if (!npending && bg->dns)
-    ADNS_FREE(bg);
   return now + interval;
 }
 
